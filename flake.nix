@@ -30,6 +30,11 @@
       default = inputs.self.packages.${system}.hypridle;
     });
 
+    homeManagerModules = {
+      hypridle = import ./nix/hm-module.nix inputs.self;
+      default = inputs.self.homeManagerModules.hypridle;
+    };
+
     checks = genSystems (system: inputs.self.packages.${system});
 
     formatter = genSystems (system: pkgsFor.${system}.alejandra);
