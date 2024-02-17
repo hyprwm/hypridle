@@ -4,6 +4,8 @@
   cmake,
   pkg-config,
   hyprlang,
+  sdbus-cpp,
+  systemd,
   wayland,
   wayland-protocols,
   version ? "git",
@@ -20,6 +22,8 @@ stdenv.mkDerivation {
 
   buildInputs = [
     hyprlang
+    sdbus-cpp
+    systemd
     wayland
     wayland-protocols
   ];
