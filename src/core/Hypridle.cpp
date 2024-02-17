@@ -331,15 +331,21 @@ void handleDbusSleep(sdbus::Message& msg) {
     if (MEMBER != "PrepareForSleep")
         return;
 
-    static auto* const PSLEEPCMD = (Hyprlang::STRING const*)g_pConfigManager->getValuePtr("general:before_sleep_cmd");
+    bool toSleep = true;
+    msg >> toSleep;
 
-    Debug::log(LOG, "Got PrepareForSleep from dbus");
+    static auto* const PSLEEPCMD      = (Hyprlang::STRING const*)g_pConfigManager->getValuePtr("general:before_sleep_cmd");
+    static auto* const PAFTERSLEEPCMD = (Hyprlang::STRING const*)g_pConfigManager->getValuePtr("general:after_sleep_cmd");
 
-    if (std::string{*PSLEEPCMD}.empty())
+    Debug::log(LOG, "Got PrepareForSleep from dbus with sleep {}", toSleep);
+
+    std::string cmd = toSleep ? *PSLEEPCMD : *PAFTERSLEEPCMD;
+
+    if (cmd.empty())
         return;
 
-    Debug::log(LOG, "Running before-sleep: {}", *PSLEEPCMD);
-    spawn(*PSLEEPCMD);
+    Debug::log(LOG, "Running: {}", cmd);
+    spawn(cmd);
 }
 
 void handleDbusScreensaver(sdbus::MethodCall call, bool inhibit) {
