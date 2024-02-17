@@ -1,7 +1,7 @@
 # hypridle
 Hyprland's idle daemon
 
-# Configuration
+## Configuration
 
 Configuration is done via `~/.config/hypr/hypridle.conf` in the standard
 hyprland syntax.
@@ -14,12 +14,12 @@ listener {
 }
 ```
 
-# Dependencies
+## Dependencies
  - wayland
  - wayland-protocols
  - hyprlang >= 0.4.0
 
-# Building & Installation
+## Building & Installation
 
 Building:
 ```sh
