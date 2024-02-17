@@ -9,7 +9,8 @@ enum eLogLevel {
     LOG,
     WARN,
     ERR,
-    CRIT
+    CRIT,
+    NONE
 };
 
 #define RASSERT(expr, reason, ...)                                                                                                                                                 \
@@ -36,18 +37,21 @@ namespace Debug {
         if (quiet)
             return;
 
-        std::cout << '[';
+        if (level != NONE) {
+            std::cout << '[';
 
-        switch (level) {
-            case TRACE: std::cout << "TRACE"; break;
-            case INFO: std::cout << "INFO"; break;
-            case LOG: std::cout << "LOG"; break;
-            case WARN: std::cout << "WARN"; break;
-            case ERR: std::cout << "ERR"; break;
-            case CRIT: std::cout << "CRITICAL"; break;
+            switch (level) {
+                case TRACE: std::cout << "TRACE"; break;
+                case INFO: std::cout << "INFO"; break;
+                case LOG: std::cout << "LOG"; break;
+                case WARN: std::cout << "WARN"; break;
+                case ERR: std::cout << "ERR"; break;
+                case CRIT: std::cout << "CRITICAL"; break;
+                default: break;
+            }
+
+            std::cout << "] ";
         }
-
-        std::cout << "] ";
 
         std::cout << std::vformat(fmt, std::make_format_args(args...)) << "\n";
     }
