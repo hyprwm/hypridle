@@ -1,6 +1,11 @@
 # hypridle
 Hyprland's idle daemon
 
+## Features
+ - based on the `ext-idle-notify-v1` wayland protocol
+ - support for dbus' loginctl commands (lock / unlock / before-sleep)
+ - support for dbus' inhibit (used by e.g. firefox / steam)
+
 ## Configuration
 
 Configuration is done via `~/.config/hypr/hypridle.conf` in the standard
@@ -11,6 +16,7 @@ general {
     lock_cmd = notify-send "lock!"          # dbus/sysd lock command (loginctl lock-session) 
     unlock_cmd = notify-send "unlock!"      # same as above, but unlock
     before_sleep_cmd = notify-send "Zzz"    # command ran before sleep
+    ignore_dbus_inhibit = false             # whether to ignore dbus-sent idle-inhibit requests (used by e.g. firefox or steam)
 }
 
 listener {
