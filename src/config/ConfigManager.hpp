@@ -19,6 +19,7 @@ class CConfigManager {
     };
 
     std::vector<STimeoutRule> getRules();
+    void* const*              getValuePtr(const std::string& name);
 
   private:
     Hyprlang::CConfig         m_config;

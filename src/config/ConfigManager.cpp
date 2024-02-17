@@ -1,6 +1,5 @@
 #include "ConfigManager.hpp"
 #include <filesystem>
-#include "../helpers/VarList.hpp"
 
 static std::string getConfigDir() {
     static const char* xdgConfigHome = getenv("XDG_CONFIG_HOME");
@@ -23,6 +22,10 @@ void CConfigManager::init() {
     m_config.addSpecialCategory("listener", Hyprlang::SSpecialCategoryOptions{.key = "timeout"});
     m_config.addSpecialConfigValue("listener", "on-timeout", Hyprlang::STRING{""});
     m_config.addSpecialConfigValue("listener", "on-resume", Hyprlang::STRING{""});
+
+    m_config.addConfigValue("general:lock_cmd", Hyprlang::STRING{""});
+    m_config.addConfigValue("general:unlock_cmd", Hyprlang::STRING{""});
+    m_config.addConfigValue("general:before_sleep_cmd", Hyprlang::STRING{""});
 
     m_config.commence();
 
@@ -73,4 +76,8 @@ Hyprlang::CParseResult CConfigManager::postParse() {
 
 std::vector<CConfigManager::STimeoutRule> CConfigManager::getRules() {
     return m_vRules;
+}
+
+void* const* CConfigManager::getValuePtr(const std::string& name) {
+    return m_config.getConfigValuePtr(name.c_str())->getDataStaticPtr();
 }

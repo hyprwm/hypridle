@@ -7,6 +7,12 @@ Configuration is done via `~/.config/hypr/hypridle.conf` in the standard
 hyprland syntax.
 
 ```ini
+general {
+    lock_cmd = notify-send "lock!"          # dbus/sysd lock command (loginctl lock-session) 
+    unlock_cmd = notify-send "unlock!"      # same as above, but unlock
+    before_sleep_cmd = notify-send "Zzz"    # command ran before sleep
+}
+
 listener {
     timeout = 500                            # in seconds
     on-timeout = notify-send "You are idle!" # command to run when timeout has passed
@@ -21,6 +27,7 @@ will make those events ignored.
  - wayland
  - wayland-protocols
  - hyprlang >= 0.4.0
+ - sdbus-c++
 
 ## Building & Installation
 

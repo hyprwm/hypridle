@@ -3,6 +3,7 @@
 #include <memory>
 #include <vector>
 #include <wayland-client.h>
+#include <sdbus-c++/sdbus-c++.h>
 
 #include "ext-idle-notify-v1-protocol.h"
 
@@ -25,6 +26,11 @@ class CHypridle {
     void onResumed(SIdleListener*);
 
   private:
+    void setupDBUS();
+    void enterEventLoop();
+
+    bool m_bTerminate = false;
+
     struct {
         wl_display*  display  = nullptr;
         wl_registry* registry = nullptr;
@@ -36,6 +42,19 @@ class CHypridle {
 
         std::vector<SIdleListener> listeners;
     } m_sWaylandIdleState;
+
+    struct {
+        std::unique_ptr<sdbus::IConnection> connection;
+        sdbus::Slot                         login1match;
+    } m_sDBUSState;
+
+    struct {
+        std::condition_variable loopSignal;
+        std::mutex              loopMutex;
+        std::atomic<bool>       shouldProcess = false;
+        std::mutex              loopRequestMutex;
+        std::mutex              eventLock;
+    } m_sEventLoopInternals;
 };
 
 inline std::unique_ptr<CHypridle> g_pHypridle;
