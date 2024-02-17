@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.19)
 
-set(VERSION 0.1)
+set(VERSION 0.1.0)
 
 project(hypridle
     DESCRIPTION "An idle management daemon for Hyprland"
@@ -32,7 +32,7 @@ message(STATUS "Checking deps...")
 
 find_package(Threads REQUIRED)
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(deps REQUIRED IMPORTED_TARGET wayland-client wayland-protocols hyprlang>=0.3.2 sdbus-c++)
+pkg_check_modules(deps REQUIRED IMPORTED_TARGET wayland-client wayland-protocols hyprlang>=0.4.0 sdbus-c++)
 
 file(GLOB_RECURSE SRCFILES CONFIGURE_DEPENDS "src/*.cpp")
 add_executable(hypridle ${SRCFILES})
