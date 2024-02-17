@@ -19,7 +19,8 @@ CConfigManager::CConfigManager() : m_config(getMainConfigPath().c_str(), Hyprlan
 }
 
 void CConfigManager::init() {
-    m_config.addSpecialCategory("listener", Hyprlang::SSpecialCategoryOptions{.key = "timeout"});
+    m_config.addSpecialCategory("listener", Hyprlang::SSpecialCategoryOptions{.key = nullptr, .anonymousKeyBased = true});
+    m_config.addSpecialConfigValue("listener", "timeout", Hyprlang::INT{-1});
     m_config.addSpecialConfigValue("listener", "on-timeout", Hyprlang::STRING{""});
     m_config.addSpecialConfigValue("listener", "on-resume", Hyprlang::STRING{""});
 
@@ -50,19 +51,18 @@ Hyprlang::CParseResult CConfigManager::postParse() {
     }
 
     for (auto& k : KEYS) {
-        STimeoutRule rule;
-        uint64_t     timeout = 0;
-        try {
-            timeout = std::stoull(std::any_cast<Hyprlang::STRING>(m_config.getSpecialConfigValue("listener", "timeout", k.c_str())));
-        } catch (std::exception& e) {
-            result.setError(
-                (std::string{"Faulty rule: cannot parse timeout "} + std::any_cast<Hyprlang::STRING>(m_config.getSpecialConfigValue("listener", "timeout", k.c_str()))).c_str());
-            continue;
-        }
+        STimeoutRule  rule;
+
+        Hyprlang::INT timeout = std::any_cast<Hyprlang::INT>(m_config.getSpecialConfigValue("listener", "timeout", k.c_str()));
 
         rule.timeout   = timeout;
         rule.onTimeout = std::any_cast<Hyprlang::STRING>(m_config.getSpecialConfigValue("listener", "on-timeout", k.c_str()));
         rule.onResume  = std::any_cast<Hyprlang::STRING>(m_config.getSpecialConfigValue("listener", "on-resume", k.c_str()));
+
+        if (timeout == -1) {
+            result.setError("Category has a missing timeout setting");
+            continue;
+        }
 
         m_vRules.emplace_back(rule);
     }
