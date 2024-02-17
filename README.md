@@ -14,6 +14,9 @@ listener {
 }
 ```
 
+You can add as many listeners as you please. Omitting `on-timeout` or `on-resume` (or leaving them empty)
+will make those events ignored.
+
 ## Dependencies
  - wayland
  - wayland-protocols
