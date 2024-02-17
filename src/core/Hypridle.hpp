@@ -17,19 +17,30 @@ class CHypridle {
         std::string               onRestore    = "";
     };
 
-    void run();
+    struct SDbusInhibitCookie {
+        uint32_t    cookie = 0;
+        std::string app, reason;
+    };
 
-    void onGlobal(void* data, struct wl_registry* registry, uint32_t name, const char* interface, uint32_t version);
-    void onGlobalRemoved(void* data, struct wl_registry* registry, uint32_t name);
+    void               run();
 
-    void onIdled(SIdleListener*);
-    void onResumed(SIdleListener*);
+    void               onGlobal(void* data, struct wl_registry* registry, uint32_t name, const char* interface, uint32_t version);
+    void               onGlobalRemoved(void* data, struct wl_registry* registry, uint32_t name);
+
+    void               onIdled(SIdleListener*);
+    void               onResumed(SIdleListener*);
+
+    void               onInhibit(bool lock);
+
+    SDbusInhibitCookie getDbusInhibitCookie(uint32_t cookie);
+    void               registerDbusInhibitCookie(SDbusInhibitCookie& cookie);
 
   private:
-    void setupDBUS();
-    void enterEventLoop();
+    void    setupDBUS();
+    void    enterEventLoop();
 
-    bool m_bTerminate = false;
+    bool    m_bTerminate    = false;
+    int64_t m_iInhibitLocks = 0;
 
     struct {
         wl_display*  display  = nullptr;
@@ -45,7 +56,9 @@ class CHypridle {
 
     struct {
         std::unique_ptr<sdbus::IConnection> connection;
-        sdbus::Slot                         login1match;
+        std::unique_ptr<sdbus::IConnection> screenSaverServiceConnection;
+        std::unique_ptr<sdbus::IObject>     screenSaverObject;
+        std::vector<SDbusInhibitCookie>     inhibitCookies;
     } m_sDBUSState;
 
     struct {

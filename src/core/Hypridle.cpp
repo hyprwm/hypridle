@@ -93,11 +93,15 @@ void CHypridle::enterEventLoop() {
             .fd     = wl_display_get_fd(m_sWaylandState.display),
             .events = POLLIN,
         },
+        {
+            .fd     = m_sDBUSState.screenSaverServiceConnection ? m_sDBUSState.screenSaverServiceConnection->getEventLoopPollData().fd : 0,
+            .events = POLLIN,
+        },
     };
 
     std::thread pollThr([this, &pollfds]() {
         while (1) {
-            int ret = poll(pollfds, 2, 5000 /* 5 seconds, reasonable. It's because we might need to terminate */);
+            int ret = poll(pollfds, m_sDBUSState.screenSaverServiceConnection ? 3 : 2, 5000 /* 5 seconds, reasonable. It's because we might need to terminate */);
             if (ret < 0) {
                 Debug::log(CRIT, "[core] Polling fds failed with {}", errno);
                 m_bTerminate = true;
@@ -156,6 +160,13 @@ void CHypridle::enterEventLoop() {
                 wl_display_dispatch_pending(m_sWaylandState.display);
             } else {
                 wl_display_dispatch(m_sWaylandState.display);
+            }
+        }
+
+        if (pollfds[2].revents & POLLIN /* dbus2 */) {
+            Debug::log(TRACE, "got dbus event");
+            while (m_sDBUSState.screenSaverServiceConnection->processPendingRequest()) {
+                ;
             }
         }
 
@@ -268,6 +279,27 @@ void CHypridle::onResumed(SIdleListener* pListener) {
     spawn(pListener->onRestore);
 }
 
+void CHypridle::onInhibit(bool lock) {
+    m_iInhibitLocks += lock ? 1 : -1;
+    if (m_iInhibitLocks < 0)
+        Debug::log(WARN, "BUG THIS: inhibit locks < 0");
+    else
+        Debug::log(LOG, "Inhibit locks: {}", m_iInhibitLocks);
+}
+
+CHypridle::SDbusInhibitCookie CHypridle::getDbusInhibitCookie(uint32_t cookie) {
+    for (auto& c : m_sDBUSState.inhibitCookies) {
+        if (c.cookie == cookie)
+            return c;
+    }
+
+    return {};
+}
+
+void CHypridle::registerDbusInhibitCookie(CHypridle::SDbusInhibitCookie& cookie) {
+    m_sDBUSState.inhibitCookies.push_back(cookie);
+}
+
 void handleDbusLogin(sdbus::Message& msg) {
     // lock & unlock
     static auto* const PLOCKCMD   = (Hyprlang::STRING const*)g_pConfigManager->getValuePtr("general:lock_cmd");
@@ -310,6 +342,46 @@ void handleDbusSleep(sdbus::Message& msg) {
     spawn(*PSLEEPCMD);
 }
 
+void handleDbusScreensaver(sdbus::MethodCall call, bool inhibit) {
+    std::string app = "?", reason = "?";
+
+    if (inhibit) {
+        call >> app;
+        call >> reason;
+    } else {
+        uint32_t cookie = 0;
+        call >> cookie;
+        const auto COOKIE = g_pHypridle->getDbusInhibitCookie(cookie);
+        if (COOKIE.cookie == 0) {
+            Debug::log(WARN, "No cookie in uninhibit");
+        } else {
+            app    = COOKIE.app;
+            reason = COOKIE.reason;
+        }
+    }
+
+    Debug::log(LOG, "ScreenSaver inhibit: {} dbus message from {} with content {}", inhibit, app, reason);
+
+    static auto* const PIGNORE = (Hyprlang::INT* const*)g_pConfigManager->getValuePtr("general:ignore_dbus_inhibit");
+
+    if (!**PIGNORE) {
+        if (inhibit)
+            g_pHypridle->onInhibit(true);
+        else
+            g_pHypridle->onInhibit(false);
+    }
+
+    static int cookieID = 1337;
+
+    if (inhibit) {
+        auto reply = call.createReply();
+        reply << uint32_t{cookieID++};
+        reply.send();
+
+        Debug::log(LOG, "Cookie {} sent", cookieID - 1);
+    }
+}
+
 void CHypridle::setupDBUS() {
     auto proxy  = sdbus::createProxy("org.freedesktop.login1", "/org/freedesktop/login1");
     auto method = proxy->createMethodCall("org.freedesktop.login1.Manager", "GetSession");
@@ -323,4 +395,15 @@ void CHypridle::setupDBUS() {
 
     m_sDBUSState.connection->addMatch("type='signal',path='" + path + "',interface='org.freedesktop.login1.Session'", handleDbusLogin, sdbus::floating_slot_t{});
     m_sDBUSState.connection->addMatch("type='signal',path='/org/freedesktop/login1',interface='org.freedesktop.login1.Manager'", handleDbusSleep, sdbus::floating_slot_t{});
+
+    // attempt to register as ScreenSaver
+    try {
+        m_sDBUSState.screenSaverServiceConnection = sdbus::createSessionBusConnection("org.freedesktop.ScreenSaver");
+        m_sDBUSState.screenSaverObject            = sdbus::createObject(*m_sDBUSState.screenSaverServiceConnection, "/org/freedesktop/ScreenSaver");
+
+        m_sDBUSState.screenSaverObject->registerMethod("org.freedesktop.ScreenSaver", "Inhibit", "ss", "u", [&](sdbus::MethodCall c) { handleDbusScreensaver(c, true); });
+        m_sDBUSState.screenSaverObject->registerMethod("org.freedesktop.ScreenSaver", "UnInhibit", "u", "", [&](sdbus::MethodCall c) { handleDbusScreensaver(c, false); });
+
+        m_sDBUSState.screenSaverObject->finishRegistration();
+    } catch (std::exception& e) { Debug::log(ERR, "Failed registering for /org/freedesktop/ScreenSaver, perhaps taken?\nerr: {}", e.what()); }
 }
