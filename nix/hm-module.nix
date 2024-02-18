@@ -5,7 +5,7 @@ self: {
   ...
 }: let
   inherit (builtins) toString;
-  inherit (lib.types) str int package;
+  inherit (lib.types) bool int listOf package str submodule;
   inherit (lib.modules) mkIf;
   inherit (lib.options) mkOption mkEnableOption;
   inherit (lib.meta) getExe;
@@ -21,60 +21,94 @@ in {
       default = self.packages.${pkgs.stdenv.hostPlatform.system}.hypridle;
     };
 
-    timeout = {
-      description = "The timeout for the hypridle service, in seconds";
-      type = int;
-      default = 500;
+    listeners = mkOption {
+      description = "The hypridle listeners";
+      type = listOf (submodule {
+        options = {
+          timeout = mkOption {
+            description = "The timeout for the hypridle service, in seconds";
+            type = int;
+            default = 500;
+          };
+
+          onTimeout = mkOption {
+            description = "The command to run when the timeout is reached";
+            type = str;
+            default = "echo 'timeout reached'";
+          };
+
+          onResume = mkOption {
+            description = "The command to run when the service resumes";
+            type = str;
+            default = "echo 'service resumed'";
+          };
+        };
+      });
     };
 
-    onTimeout = {
-      description = "The command to run when the timeout is reached";
-      type = str;
-      default = "echo 'timeout reached'";
-    };
-
-    onResume = {
-      description = "The command to run when the service resumes";
-      type = str;
-      default = "echo 'service resumed'";
-    };
-
-    lockCmd = {
+    lockCmd = mkOption {
       description = "The command to run when the service locks";
       type = str;
       default = "echo 'lock!'";
     };
 
-    unlockCmd = {
+    unlockCmd = mkOption {
       description = "The command to run when the service unlocks";
       type = str;
       default = "echo 'unlock!'";
     };
 
-    beforeSleepCmd = {
+    afterSleepCmd = mkOption {
+      description = "The command to run after the service sleeps";
+      type = str;
+      default = "echo 'Awake...'";
+    };
+
+    beforeSleepCmd = mkOption {
       description = "The command to run before the service sleeps";
       type = str;
       default = "echo 'Zzz...'";
+    };
+
+    ignoreDbusInhibit = mkOption {
+      description = "Whether to ignore dbus-sent idle-inhibit requests (used by e.g. firefox or steam)";
+      type = bool;
+      default = false;
     };
   };
 
   config = mkIf cfg.enable {
     xdg.configFile."hypr/hypridle.conf".text = ''
-      listener {
-        timeout = ${toString cfg.timeout};
-        on-timeout = ${cfg.onTimeout}
-        on-resume = ${cfg.onResume}
+      general {
         lock_cmd = ${cfg.lockCmd}
         unlock_cmd = ${cfg.unlockCmd}
         before_sleep_cmd = ${cfg.beforeSleepCmd}
+        after_sleep_cmd = ${cfg.afterSleepCmd}
+        ignore_dbus_inhibit = ${
+        if cfg.ignoreDbusInhibit
+        then "true"
+        else "false"
       }
+      }
+
+      ${builtins.concatStringsSep "\n" (map (listener: ''
+          listener {
+            timeout = ${toString listener.timeout}
+            on-timeout = ${listener.onTimeout}
+            on-resume = ${listener.onResume}
+          }
+        '')
+        cfg.listeners)}
     '';
 
     systemd.user.services.hypridle = {
-      description = "Hypridle";
-      after = ["graphical-session.target"];
-      wantedBy = ["default.target"];
-      serviceConfig = {
+      Unit = {
+        Description = "Hypridle";
+        After = ["graphical-session.target"];
+        WantedBy = ["default.target"];
+      };
+
+      Service = {
         ExecStart = "${getExe cfg.package}";
         Restart = "always";
         RestartSec = "10";
