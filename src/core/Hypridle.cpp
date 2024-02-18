@@ -69,6 +69,8 @@ void CHypridle::run() {
         ext_idle_notification_v1_add_listener(l.notification, &idleListener, &l);
     }
 
+    wl_display_roundtrip(m_sWaylandState.display);
+
     Debug::log(LOG, "wayland done, registering dbus");
 
     try {
