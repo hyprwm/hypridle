@@ -33,5 +33,6 @@ stdenv.mkDerivation {
     description = "An idle management daemon for Hyprland";
     license = lib.licenses.bsd3;
     platforms = lib.platforms.linux;
+    mainProgram = "hypridle";
   };
 }
