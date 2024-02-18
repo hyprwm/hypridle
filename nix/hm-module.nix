@@ -105,7 +105,6 @@ in {
       Unit = {
         Description = "Hypridle";
         After = ["graphical-session.target"];
-        WantedBy = ["default.target"];
       };
 
       Service = {
@@ -113,6 +112,8 @@ in {
         Restart = "always";
         RestartSec = "10";
       };
+
+      Install.WantedBy = [ "default.target" ];
     };
   };
 }
