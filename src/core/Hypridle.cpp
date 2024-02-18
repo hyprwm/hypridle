@@ -258,6 +258,11 @@ static void spawn(const std::string& args) {
 void CHypridle::onIdled(SIdleListener* pListener) {
     Debug::log(LOG, "Idled: rule {:x}", (uintptr_t)pListener);
 
+    if (g_pHypridle->m_iInhibitLocks > 0) {
+        Debug::log(LOG, "Ignoring, inhibit locks: {}", g_pHypridle->m_iInhibitLocks);
+        return;
+    }
+
     if (pListener->onTimeout.empty()) {
         Debug::log(LOG, "Ignoring, onTimeout is empty.");
         return;
@@ -269,6 +274,11 @@ void CHypridle::onIdled(SIdleListener* pListener) {
 
 void CHypridle::onResumed(SIdleListener* pListener) {
     Debug::log(LOG, "Resumed: rule {:x}", (uintptr_t)pListener);
+
+    if (g_pHypridle->m_iInhibitLocks > 0) {
+        Debug::log(LOG, "Ignoring, inhibit locks: {}", g_pHypridle->m_iInhibitLocks);
+        return;
+    }
 
     if (pListener->onRestore.empty()) {
         Debug::log(LOG, "Ignoring, onRestore is empty.");
