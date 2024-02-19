@@ -297,10 +297,9 @@ void CHypridle::onInhibit(bool lock) {
         // what would be safer appending one or setting to 0?
         // what if would be equal -2?
         // you have been warned.
-        m_iInhibitLocks=0;
+        m_iInhibitLocks = 0;
         Debug::log(WARN, "BUG THIS: inhibit locks < 0. Brought back to 0.");
-    }
-    else
+    } else
         Debug::log(LOG, "Inhibit locks: {}", m_iInhibitLocks);
 }
 
