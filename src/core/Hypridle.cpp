@@ -261,7 +261,7 @@ void CHypridle::onIdled(SIdleListener* pListener) {
     Debug::log(LOG, "Idled: rule {:x}", (uintptr_t)pListener);
 
     if (g_pHypridle->m_iInhibitLocks > 0) {
-        Debug::log(LOG, "Ignoring, inhibit locks: {}", g_pHypridle->m_iInhibitLocks);
+        Debug::log(LOG, "Ignoring from onIdled(), inhibit locks: {}", g_pHypridle->m_iInhibitLocks);
         return;
     }
 
@@ -278,7 +278,7 @@ void CHypridle::onResumed(SIdleListener* pListener) {
     Debug::log(LOG, "Resumed: rule {:x}", (uintptr_t)pListener);
 
     if (g_pHypridle->m_iInhibitLocks > 0) {
-        Debug::log(LOG, "Ignoring, inhibit locks: {}", g_pHypridle->m_iInhibitLocks);
+        Debug::log(LOG, "Ignoring from onResumed(), inhibit locks: {}", g_pHypridle->m_iInhibitLocks);
         return;
     }
 
@@ -293,9 +293,13 @@ void CHypridle::onResumed(SIdleListener* pListener) {
 
 void CHypridle::onInhibit(bool lock) {
     m_iInhibitLocks += lock ? 1 : -1;
-    if (m_iInhibitLocks < 0)
-        Debug::log(WARN, "BUG THIS: inhibit locks < 0");
-    else
+    if (m_iInhibitLocks < 0) {
+        // what would be safer appending one or setting to 0?
+        // what if would be equal -2?
+        // you have been warned.
+        m_iInhibitLocks = 0;
+        Debug::log(WARN, "BUG THIS: inhibit locks < 0. Brought back to 0.");
+    } else
         Debug::log(LOG, "Inhibit locks: {}", m_iInhibitLocks);
 }
 
