@@ -298,7 +298,7 @@ void CHypridle::onInhibit(bool lock) {
         // what if would be equal -2?
         // you have been warned.
         m_iInhibitLocks=0;
-        Debug::log(WARN, "BUG THIS: inhibit locks < 0. Incrementing by 1.");
+        Debug::log(WARN, "BUG THIS: inhibit locks < 0. Brought back to 0.");
     }
     else
         Debug::log(LOG, "Inhibit locks: {}", m_iInhibitLocks);
