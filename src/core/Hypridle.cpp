@@ -294,11 +294,10 @@ void CHypridle::onResumed(SIdleListener* pListener) {
 void CHypridle::onInhibit(bool lock) {
     m_iInhibitLocks += lock ? 1 : -1;
     if (m_iInhibitLocks < 0) {
-        Debug::log(WARN, "BUG THIS: inhibit locks < 0");
         // what would be safer appending one or setting to 0?
         // what if would be equal -2?
         m_iInhibitLocks++;
-        Debug::log(WARN, "APPEND THIS: inhibit locks ++");
+        Debug::log(WARN, "BUG THIS: inhibit locks < 0. Incrementing by 1.");
     }
     else
         Debug::log(LOG, "Inhibit locks: {}", m_iInhibitLocks);
