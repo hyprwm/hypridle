@@ -261,7 +261,7 @@ void CHypridle::onIdled(SIdleListener* pListener) {
     Debug::log(LOG, "Idled: rule {:x}", (uintptr_t)pListener);
 
     if (g_pHypridle->m_iInhibitLocks > 0) {
-        Debug::log(LOG, "Ignoring, inhibit locks: {}", g_pHypridle->m_iInhibitLocks);
+        Debug::log(LOG, "Ignoring from onIdled(), inhibit locks: {}", g_pHypridle->m_iInhibitLocks);
         return;
     }
 
@@ -278,7 +278,7 @@ void CHypridle::onResumed(SIdleListener* pListener) {
     Debug::log(LOG, "Resumed: rule {:x}", (uintptr_t)pListener);
 
     if (g_pHypridle->m_iInhibitLocks > 0) {
-        Debug::log(LOG, "Ignoring, inhibit locks: {}", g_pHypridle->m_iInhibitLocks);
+        Debug::log(LOG, "Ignoring from onResumed(), inhibit locks: {}", g_pHypridle->m_iInhibitLocks);
         return;
     }
 
