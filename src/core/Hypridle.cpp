@@ -303,7 +303,7 @@ void CHypridle::onInhibit(bool lock) {
         Debug::log(LOG, "Inhibit locks: {}", m_iInhibitLocks);
     } else {
         Debug::log(LOG, "Inhibit locks: {}", m_iInhibitLocks);
-        if (isIdled) {
+        if (isIdled && lock) {
             Debug::log(LOG, "Running from onInhibit() isIdled = true {}", g_pConfigManager->getOnTimeoutCommand());
             spawn(g_pConfigManager->getOnTimeoutCommand());
         }
