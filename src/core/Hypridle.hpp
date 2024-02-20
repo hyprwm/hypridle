@@ -34,6 +34,7 @@ class CHypridle {
 
     SDbusInhibitCookie getDbusInhibitCookie(uint32_t cookie);
     void               registerDbusInhibitCookie(SDbusInhibitCookie& cookie);
+    void               unregisterDbusInhibitCookie(const SDbusInhibitCookie& cookie);
 
   private:
     void    setupDBUS();

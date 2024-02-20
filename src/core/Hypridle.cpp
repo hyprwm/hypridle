@@ -316,6 +316,16 @@ void CHypridle::registerDbusInhibitCookie(CHypridle::SDbusInhibitCookie& cookie)
     m_sDBUSState.inhibitCookies.push_back(cookie);
 }
 
+void CHypridle::unregisterDbusInhibitCookie(const CHypridle::SDbusInhibitCookie& cookie) {
+    const auto IT = std::find_if(m_sDBUSState.inhibitCookies.begin(), m_sDBUSState.inhibitCookies.end(),
+                                 [&cookie](const CHypridle::SDbusInhibitCookie& item) { return item.cookie == cookie.cookie; });
+
+    if (IT == m_sDBUSState.inhibitCookies.end())
+        Debug::log(WARN, "BUG THIS: attempted to unregister unknown cookie");
+    else
+        m_sDBUSState.inhibitCookies.erase(IT);
+}
+
 void handleDbusLogin(sdbus::Message& msg) {
     // lock & unlock
     static auto* const PLOCKCMD   = (Hyprlang::STRING const*)g_pConfigManager->getValuePtr("general:lock_cmd");
@@ -373,12 +383,14 @@ void handleDbusScreensaver(sdbus::MethodCall call, bool inhibit) {
     } else {
         uint32_t cookie = 0;
         call >> cookie;
+        Debug::log(TRACE, "Read uninhibit cookie: {}", cookie);
         const auto COOKIE = g_pHypridle->getDbusInhibitCookie(cookie);
         if (COOKIE.cookie == 0) {
             Debug::log(WARN, "No cookie in uninhibit");
         } else {
             app    = COOKIE.app;
             reason = COOKIE.reason;
+            g_pHypridle->unregisterDbusInhibitCookie(COOKIE);
         }
     }
 
@@ -396,11 +408,15 @@ void handleDbusScreensaver(sdbus::MethodCall call, bool inhibit) {
     static int cookieID = 1337;
 
     if (inhibit) {
+        auto cookie = CHypridle::SDbusInhibitCookie{uint32_t{cookieID}, app, reason};
+
         auto reply = call.createReply();
         reply << uint32_t{cookieID++};
         reply.send();
 
         Debug::log(LOG, "Cookie {} sent", cookieID - 1);
+
+        g_pHypridle->registerDbusInhibitCookie(cookie);
     } else {
         auto reply = call.createReply();
         reply.send();
