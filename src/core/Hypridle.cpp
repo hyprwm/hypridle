@@ -317,14 +317,13 @@ void CHypridle::registerDbusInhibitCookie(CHypridle::SDbusInhibitCookie& cookie)
 }
 
 void CHypridle::unregisterDbusInhibitCookie(const CHypridle::SDbusInhibitCookie& cookie) {
-    auto it = std::find_if(m_sDBUSState.inhibitCookies.begin(), m_sDBUSState.inhibitCookies.end(),
-                           [&cookie](const CHypridle::SDbusInhibitCookie& item) { return item.cookie == cookie.cookie; });
+    const auto IT = std::find_if(m_sDBUSState.inhibitCookies.begin(), m_sDBUSState.inhibitCookies.end(),
+                                 [&cookie](const CHypridle::SDbusInhibitCookie& item) { return item.cookie == cookie.cookie; });
 
-    if (it == m_sDBUSState.inhibitCookies.end()) {
+    if (IT == m_sDBUSState.inhibitCookies.end())
         Debug::log(WARN, "BUG THIS: attempted to unregister unknown cookie");
-    } else {
-        m_sDBUSState.inhibitCookies.erase(it);
-    }
+    else
+        m_sDBUSState.inhibitCookies.erase(IT);
 }
 
 void handleDbusLogin(sdbus::Message& msg) {
