@@ -259,7 +259,7 @@ static void spawn(const std::string& args) {
 
 void CHypridle::onIdled(SIdleListener* pListener) {
     Debug::log(LOG, "Idled: rule {:x}", (uintptr_t)pListener);
-
+    isIdled = true;
     if (g_pHypridle->m_iInhibitLocks > 0) {
         Debug::log(LOG, "Ignoring from onIdled(), inhibit locks: {}", g_pHypridle->m_iInhibitLocks);
         return;
@@ -276,7 +276,7 @@ void CHypridle::onIdled(SIdleListener* pListener) {
 
 void CHypridle::onResumed(SIdleListener* pListener) {
     Debug::log(LOG, "Resumed: rule {:x}", (uintptr_t)pListener);
-
+    isIdled = false;
     if (g_pHypridle->m_iInhibitLocks > 0) {
         Debug::log(LOG, "Ignoring from onResumed(), inhibit locks: {}", g_pHypridle->m_iInhibitLocks);
         return;
@@ -299,8 +299,16 @@ void CHypridle::onInhibit(bool lock) {
         // you have been warned.
         m_iInhibitLocks = 0;
         Debug::log(WARN, "BUG THIS: inhibit locks < 0. Brought back to 0.");
-    } else
+    } else if (m_iInhibitLocks > 0) {
         Debug::log(LOG, "Inhibit locks: {}", m_iInhibitLocks);
+    } else {
+        Debug::log(LOG, "Inhibit locks: {}", m_iInhibitLocks);
+        if (isIdled) {
+            /* Debug::log(LOG, "Running {}", pListener->onTimeout); */
+            /* spawn(pListener->onTimeout); */
+            // FIXME: and fill me
+        }
+    }
 }
 
 CHypridle::SDbusInhibitCookie CHypridle::getDbusInhibitCookie(uint32_t cookie) {
