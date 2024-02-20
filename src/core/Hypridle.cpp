@@ -401,6 +401,10 @@ void handleDbusScreensaver(sdbus::MethodCall call, bool inhibit) {
         reply.send();
 
         Debug::log(LOG, "Cookie {} sent", cookieID - 1);
+    } else {
+        auto reply = call.createReply();
+        reply.send();
+        Debug::log(TRACE, "Uninhibit response sent");
     }
 }
 
