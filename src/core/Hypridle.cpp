@@ -373,6 +373,7 @@ void handleDbusScreensaver(sdbus::MethodCall call, bool inhibit) {
     } else {
         uint32_t cookie = 0;
         call >> cookie;
+        Debug::log(TRACE, "Read uninhibit cookie: {}", cookie);
         const auto COOKIE = g_pHypridle->getDbusInhibitCookie(cookie);
         if (COOKIE.cookie == 0) {
             Debug::log(WARN, "No cookie in uninhibit");
@@ -396,11 +397,15 @@ void handleDbusScreensaver(sdbus::MethodCall call, bool inhibit) {
     static int cookieID = 1337;
 
     if (inhibit) {
+        auto cookie = CHypridle::SDbusInhibitCookie{uint32_t{cookieID}, app, reason};
+
         auto reply = call.createReply();
         reply << uint32_t{cookieID++};
         reply.send();
 
         Debug::log(LOG, "Cookie {} sent", cookieID - 1);
+
+        g_pHypridle->registerDbusInhibitCookie(cookie);
     } else {
         auto reply = call.createReply();
         reply.send();
