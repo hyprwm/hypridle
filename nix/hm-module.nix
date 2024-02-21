@@ -44,6 +44,7 @@ in {
           };
         };
       });
+      default = [];
     };
 
     lockCmd = mkOption {
