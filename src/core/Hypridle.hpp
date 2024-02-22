@@ -4,6 +4,7 @@
 #include <vector>
 #include <wayland-client.h>
 #include <sdbus-c++/sdbus-c++.h>
+#include <condition_variable>
 
 #include "ext-idle-notify-v1-protocol.h"
 

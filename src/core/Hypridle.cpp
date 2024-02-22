@@ -7,6 +7,8 @@
 #include <sys/mman.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <thread>
+#include <mutex>
 
 CHypridle::CHypridle() {
     m_sWaylandState.display = wl_display_connect(nullptr);
