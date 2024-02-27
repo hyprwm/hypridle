@@ -42,6 +42,7 @@ class CHypridle {
     void    enterEventLoop();
 
     bool    m_bTerminate    = false;
+    bool    isIdled         = false;
     int64_t m_iInhibitLocks = 0;
 
     struct {

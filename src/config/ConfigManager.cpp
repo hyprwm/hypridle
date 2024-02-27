@@ -80,6 +80,10 @@ std::vector<CConfigManager::STimeoutRule> CConfigManager::getRules() {
     return m_vRules;
 }
 
+std::string CConfigManager::getOnTimeoutCommand() {
+    return m_vRules.front().onTimeout;
+}
+
 void* const* CConfigManager::getValuePtr(const std::string& name) {
     return m_config.getConfigValuePtr(name.c_str())->getDataStaticPtr();
 }

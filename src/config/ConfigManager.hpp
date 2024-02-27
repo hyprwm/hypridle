@@ -18,6 +18,7 @@ class CConfigManager {
         std::string onResume  = "";
     };
 
+    std::string               getOnTimeoutCommand();
     std::vector<STimeoutRule> getRules();
     void* const*              getValuePtr(const std::string& name);
 
