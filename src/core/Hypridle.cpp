@@ -430,10 +430,15 @@ void CHypridle::setupDBUS() {
     auto proxy  = sdbus::createProxy("org.freedesktop.login1", "/org/freedesktop/login1");
     auto method = proxy->createMethodCall("org.freedesktop.login1.Manager", "GetSession");
     method << "auto";
-    auto              reply = proxy->callMethod(method);
-
     sdbus::ObjectPath path;
-    reply >> path;
+
+    try {
+        auto reply = proxy->callMethod(method);
+        reply >> path;
+    } catch (std::exception& e) {
+        Debug::log(CRIT, "Couldn't connect to logind service ({})", e.what());
+        exit(1);
+    }
 
     Debug::log(LOG, "Using dbus path {}", path.c_str());
 
