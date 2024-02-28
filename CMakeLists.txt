@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.19)
 
-set(VERSION 0.1.0)
+set(VERSION 0.1.1)
 
 project(hypridle
     DESCRIPTION "An idle management daemon for Hyprland"
