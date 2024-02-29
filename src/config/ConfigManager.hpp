@@ -9,7 +9,7 @@
 
 class CConfigManager {
   public:
-    CConfigManager();
+    CConfigManager(std::string configPath);
     void init();
 
     struct STimeoutRule {

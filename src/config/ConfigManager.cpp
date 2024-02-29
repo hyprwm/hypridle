@@ -14,7 +14,7 @@ static std::string getMainConfigPath() {
     return getConfigDir() + "/hypr/hypridle.conf";
 }
 
-CConfigManager::CConfigManager() : m_config(getMainConfigPath().c_str(), Hyprlang::SConfigOptions{.throwAllErrors = true, .allowMissingConfig = false}) {
+CConfigManager::CConfigManager(std::string configPath) : m_config(configPath.empty() ? getMainConfigPath().c_str() : configPath.c_str(), Hyprlang::SConfigOptions{.throwAllErrors = true, .allowMissingConfig = false}) {
     ;
 }
 
