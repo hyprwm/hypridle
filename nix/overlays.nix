@@ -8,7 +8,9 @@
     (builtins.substring 6 2 longDate)
   ]);
 in {
-  default = lib.composeManyExtensions [
+  default = inputs.self.overlays.hypridle;
+
+  hypridle = lib.composeManyExtensions [
     inputs.hyprlang.overlays.default
     (final: prev: {
       hypridle = prev.callPackage ./default.nix {

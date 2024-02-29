@@ -3,6 +3,7 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    systems.url = "github:nix-systems/default-linux";
 
     hyprlang = {
       url = "github:hyprwm/hyprlang";
@@ -10,33 +11,35 @@
     };
   };
 
-  outputs = inputs: let
-    inherit (inputs.nixpkgs) lib;
-    genSystems = lib.genAttrs [
-      # Add more systems if they are supported
-      "x86_64-linux"
-      "aarch64-linux"
-    ];
-    pkgsFor = genSystems (system:
-      import inputs.nixpkgs {
-        overlays = [inputs.self.overlays.default];
-        inherit system;
+  outputs = {
+    self,
+    nixpkgs,
+    systems,
+    ...
+  } @ inputs: let
+    inherit (nixpkgs) lib;
+    eachSystem = lib.genAttrs (import systems);
+
+    pkgsFor = eachSystem (system:
+      import nixpkgs {
+        localSystem.system = system;
+        overlays = with self.overlays; [default];
       });
   in {
     overlays = import ./nix/overlays.nix {inherit inputs lib;};
 
-    packages = genSystems (system: {
+    packages = eachSystem (system: {
+      default = self.packages.${system}.hypridle;
       inherit (pkgsFor.${system}) hypridle;
-      default = inputs.self.packages.${system}.hypridle;
     });
 
     homeManagerModules = {
-      hypridle = import ./nix/hm-module.nix inputs.self;
-      default = inputs.self.homeManagerModules.hypridle;
+      default = self.homeManagerModules.hypridle;
+      hypridle = import ./nix/hm-module.nix self;
     };
 
-    checks = genSystems (system: inputs.self.packages.${system});
+    checks = eachSystem (system: self.packages.${system});
 
-    formatter = genSystems (system: pkgsFor.${system}.alejandra);
+    formatter = eachSystem (system: pkgsFor.${system}.alejandra);
   };
 }
