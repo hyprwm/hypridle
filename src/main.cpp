@@ -3,6 +3,7 @@
 #include "core/Hypridle.hpp"
 
 int main(int argc, char** argv, char** envp) {
+    std::string configPath;
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -12,10 +13,14 @@ int main(int argc, char** argv, char** envp) {
 
         else if (arg == "--quiet" || arg == "-q")
             Debug::quiet = true;
+
+        else if (arg == "--config" || arg == "-c") {
+            configPath = argv[++i];
+        }
     }
 
     try {
-        g_pConfigManager = std::make_unique<CConfigManager>();
+        g_pConfigManager = std::make_unique<CConfigManager>(configPath);
         g_pConfigManager->init();
     } catch (const char* err) {
         Debug::log(CRIT, "ConfigManager threw: {}", err);

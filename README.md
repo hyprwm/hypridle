@@ -13,7 +13,7 @@ hyprland syntax.
 
 ```ini
 general {
-    lock_cmd = notify-send "lock!"          # dbus/sysd lock command (loginctl lock-session) 
+    lock_cmd = notify-send "lock!"          # dbus/sysd lock command (loginctl lock-session)
     unlock_cmd = notify-send "unlock!"      # same as above, but unlock
     before_sleep_cmd = notify-send "Zzz"    # command ran before sleep
     after_sleep_cmd = notify-send "Awake!"  # command ran after sleep
@@ -47,4 +47,13 @@ cmake --build ./build --config Release --target hypridle -j`nproc 2>/dev/null ||
 Installation:
 ```sh
 sudo cmake --install build
+```
+
+## Flags
+
+```
+-c <config_path>, --config <config_path>: specify a config path, by default
+                                          set to ${XDG_CONFIG_HOME}/hypr/hypridle.conf
+-q, --quiet
+-v, --verbose
 ```
