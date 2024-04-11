@@ -26,6 +26,7 @@ include_directories(
 set(CMAKE_CXX_STANDARD 23)
 add_compile_options(-Wall -Wextra -Wno-unused-parameter -Wno-unused-value
 	-Wno-missing-field-initializers -Wno-narrowing)
+configure_file(systemd/hypridle.service.in systemd/hypridle.service @ONLY)
 
 # dependencies
 message(STATUS "Checking deps...")
@@ -73,3 +74,4 @@ protocol("staging/ext-idle-notify/ext-idle-notify-v1.xml" "ext-idle-notify-v1" f
 
 # Installation
 install(TARGETS hypridle)
+install(FILES ${CMAKE_BINARY_DIR}/systemd/hypridle.service DESTINATION "lib/systemd/user")
