@@ -1,0 +1,14 @@
+[Unit]
+Description=Hyprland's idle daemon
+Documentation=https://wiki.hyprland.org/Hypr-Ecosystem/hypridle
+PartOf=graphical-session.target
+After=graphical-session.target
+ConditionEnvironment=WAYLAND_DISPLAY
+
+[Service]
+Type=simple
+ExecStart=@CMAKE_INSTALL_PREFIX@/@CMAKE_INSTALL_BINDIR@/hypridle
+Restart=on-failure
+
+[Install]
+WantedBy=graphical-session.target

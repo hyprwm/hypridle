@@ -38,15 +38,27 @@ will make those events ignored.
 
 ## Building & Installation
 
-Building:
+### Building:
 ```sh
 cmake --no-warn-unused-cli -DCMAKE_BUILD_TYPE:STRING=Release -S . -B ./build
 cmake --build ./build --config Release --target hypridle -j`nproc 2>/dev/null || getconf NPROCESSORS_CONF`
 ```
 
-Installation:
+### Installation:
 ```sh
 sudo cmake --install build
+```
+
+### Usage:
+
+Hypridle should ideally be launched after logging in. This can be done by your compositor or by systemd.
+For example, for Hyprland, use the following in your `hyprland.conf`.
+```hyprlang
+exec-once = hypridle
+```
+If, instead, you want to have systemd do this for you, you'll just need to enable the service using
+```sh
+systemctl --user enable --now hypridle.service
 ```
 
 ## Flags
