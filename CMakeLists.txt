@@ -74,4 +74,4 @@ protocol("staging/ext-idle-notify/ext-idle-notify-v1.xml" "ext-idle-notify-v1" f
 
 # Installation
 install(TARGETS hypridle)
-install(FILES ${CMAKE_BINARY_DIR}/systemd/hypridle.service DESTINATION ${CMAKE_INSTALL_LIBDIR}/systemd/user)
+install(FILES ${CMAKE_BINARY_DIR}/systemd/hypridle.service DESTINATION "lib/systemd/user")
