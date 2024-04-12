@@ -7,7 +7,7 @@ ConditionEnvironment=WAYLAND_DISPLAY
 
 [Service]
 Type=simple
-ExecStart=@CMAKE_INSTALL_PREFIX@/@CMAKE_INSTALL_BINDIR@/hypridle
+ExecStart=@CMAKE_INSTALL_PREFIX@/bin/hypridle
 Restart=on-failure
 
 [Install]
