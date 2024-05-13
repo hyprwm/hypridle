@@ -383,6 +383,35 @@ void handleDbusSleep(sdbus::Message& msg) {
     spawn(cmd);
 }
 
+void handleDbusBlockInhibits(const std::string& inhibits) {
+    static auto* const PIGNORE = (Hyprlang::INT* const*)g_pConfigManager->getValuePtr("general:ignore_dbus_inhibit");
+    if (**PIGNORE) return;
+
+    static auto inhibited = false;
+    // BlockInhibited is a colon separated list of inhibit types. Wrapping in additional colons allows for easier checking if there are active inhibits we are interested in
+    auto inhibits_ = ":" + inhibits + ":";
+    if (inhibits_.contains(":idle:")) {
+        if (!inhibited) {
+            inhibited = true;
+            Debug::log(LOG, "systemd idle inhibit active");
+            g_pHypridle->onInhibit(true);
+        }
+    } else if (inhibited) {
+        inhibited = false;
+        Debug::log(LOG, "systemd idle inhibit inactive");
+        g_pHypridle->onInhibit(false);
+    }
+}
+
+void handleDbusBlockInhibitsPropertyChanged(sdbus::Message& msg) {
+    std::string interface;
+    std::map<std::string, sdbus::Variant> changedProperties;
+    msg >> interface >> changedProperties;
+    if (changedProperties.contains("BlockInhibited")) {
+        handleDbusBlockInhibits(changedProperties["BlockInhibited"].get<std::string>());
+    }
+}
+
 void handleDbusScreensaver(sdbus::MethodCall call, bool inhibit) {
     std::string app = "?", reason = "?";
 
@@ -451,6 +480,14 @@ void CHypridle::setupDBUS() {
 
     m_sDBUSState.connection->addMatch("type='signal',path='" + path + "',interface='org.freedesktop.login1.Session'", handleDbusLogin, sdbus::floating_slot_t{});
     m_sDBUSState.connection->addMatch("type='signal',path='/org/freedesktop/login1',interface='org.freedesktop.login1.Manager'", handleDbusSleep, sdbus::floating_slot_t{});
+    m_sDBUSState.connection->addMatch("type='signal',path='/org/freedesktop/login1',interface='org.freedesktop.DBus.Properties'", handleDbusBlockInhibitsPropertyChanged, sdbus::floating_slot_t{});
+
+    try {
+        std::string value = proxy->getProperty("BlockInhibited").onInterface("org.freedesktop.login1.Manager");
+        handleDbusBlockInhibits(value);
+    } catch (std::exception& e) {
+        Debug::log(WARN, "Couldn't retrieve current systemd inhibits ({})", e.what());
+    }
 
     // attempt to register as ScreenSaver
     try {
