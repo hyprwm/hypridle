@@ -88,6 +88,8 @@ void CHypridle::run() {
 
 void CHypridle::enterEventLoop() {
 
+    nfds_t pollfdsCount = m_sDBUSState.screenSaverServiceConnection ? 3 : 2;
+
     pollfd pollfds[] = {
         {
             .fd     = m_sDBUSState.connection->getEventLoopPollData().fd,
@@ -103,16 +105,16 @@ void CHypridle::enterEventLoop() {
         },
     };
 
-    std::thread pollThr([this, &pollfds]() {
+    std::thread pollThr([this, &pollfds, &pollfdsCount]() {
         while (1) {
-            int ret = poll(pollfds, m_sDBUSState.screenSaverServiceConnection ? 3 : 2, 5000 /* 5 seconds, reasonable. It's because we might need to terminate */);
+            int ret = poll(pollfds, pollfdsCount, 5000 /* 5 seconds, reasonable. It's because we might need to terminate */);
             if (ret < 0) {
                 Debug::log(CRIT, "[core] Polling fds failed with {}", errno);
                 m_bTerminate = true;
                 exit(1);
             }
 
-            for (size_t i = 0; i < 3; ++i) {
+            for (size_t i = 0; i < pollfdsCount; ++i) {
                 if (pollfds[i].revents & POLLHUP) {
                     Debug::log(CRIT, "[core] Disconnected from pollfd id {}", i);
                     m_bTerminate = true;
@@ -167,7 +169,7 @@ void CHypridle::enterEventLoop() {
             }
         }
 
-        if (pollfds[2].revents & POLLIN /* dbus2 */) {
+        if (pollfdsCount > 2 && pollfds[2].revents & POLLIN /* dbus2 */) {
             Debug::log(TRACE, "got dbus event");
             while (m_sDBUSState.screenSaverServiceConnection->processPendingRequest()) {
                 ;
@@ -384,9 +386,6 @@ void handleDbusSleep(sdbus::Message& msg) {
 }
 
 void handleDbusBlockInhibits(const std::string& inhibits) {
-    static auto* const PIGNORE = (Hyprlang::INT* const*)g_pConfigManager->getValuePtr("general:ignore_dbus_inhibit");
-    if (**PIGNORE) return;
-
     static auto inhibited = false;
     // BlockInhibited is a colon separated list of inhibit types. Wrapping in additional colons allows for easier checking if there are active inhibits we are interested in
     auto inhibits_ = ":" + inhibits + ":";
@@ -434,14 +433,10 @@ void handleDbusScreensaver(sdbus::MethodCall call, bool inhibit) {
 
     Debug::log(LOG, "ScreenSaver inhibit: {} dbus message from {} with content {}", inhibit, app, reason);
 
-    static auto* const PIGNORE = (Hyprlang::INT* const*)g_pConfigManager->getValuePtr("general:ignore_dbus_inhibit");
-
-    if (!**PIGNORE) {
-        if (inhibit)
-            g_pHypridle->onInhibit(true);
-        else
-            g_pHypridle->onInhibit(false);
-    }
+    if (inhibit)
+        g_pHypridle->onInhibit(true);
+    else
+        g_pHypridle->onInhibit(false);
 
     static int cookieID = 1337;
 
@@ -463,6 +458,9 @@ void handleDbusScreensaver(sdbus::MethodCall call, bool inhibit) {
 }
 
 void CHypridle::setupDBUS() {
+    static auto const IGNORE_DBUS_INHIBIT    = **(Hyprlang::INT* const*)g_pConfigManager->getValuePtr("general:ignore_dbus_inhibit");
+    static auto const IGNORE_SYSTEMD_INHIBIT = **(Hyprlang::INT* const*)g_pConfigManager->getValuePtr("general:ignore_systemd_inhibit");
+
     auto proxy  = sdbus::createProxy("org.freedesktop.login1", "/org/freedesktop/login1");
     auto method = proxy->createMethodCall("org.freedesktop.login1.Manager", "GetSession");
     method << "auto";
@@ -480,23 +478,36 @@ void CHypridle::setupDBUS() {
 
     m_sDBUSState.connection->addMatch("type='signal',path='" + path + "',interface='org.freedesktop.login1.Session'", handleDbusLogin, sdbus::floating_slot_t{});
     m_sDBUSState.connection->addMatch("type='signal',path='/org/freedesktop/login1',interface='org.freedesktop.login1.Manager'", handleDbusSleep, sdbus::floating_slot_t{});
-    m_sDBUSState.connection->addMatch("type='signal',path='/org/freedesktop/login1',interface='org.freedesktop.DBus.Properties'", handleDbusBlockInhibitsPropertyChanged, sdbus::floating_slot_t{});
 
-    try {
-        std::string value = proxy->getProperty("BlockInhibited").onInterface("org.freedesktop.login1.Manager");
-        handleDbusBlockInhibits(value);
-    } catch (std::exception& e) {
-        Debug::log(WARN, "Couldn't retrieve current systemd inhibits ({})", e.what());
+    if (!IGNORE_SYSTEMD_INHIBIT) {
+        m_sDBUSState.connection->addMatch("type='signal',path='/org/freedesktop/login1',interface='org.freedesktop.DBus.Properties'", handleDbusBlockInhibitsPropertyChanged, sdbus::floating_slot_t{});
+
+        try {
+            std::string value = proxy->getProperty("BlockInhibited").onInterface("org.freedesktop.login1.Manager");
+            handleDbusBlockInhibits(value);
+        } catch (std::exception& e) { Debug::log(WARN, "Couldn't retrieve current systemd inhibits ({})", e.what()); }
     }
 
-    // attempt to register as ScreenSaver
-    try {
-        m_sDBUSState.screenSaverServiceConnection = sdbus::createSessionBusConnection("org.freedesktop.ScreenSaver");
-        m_sDBUSState.screenSaverObject            = sdbus::createObject(*m_sDBUSState.screenSaverServiceConnection, "/org/freedesktop/ScreenSaver");
+    if (!IGNORE_DBUS_INHIBIT) {
+        // attempt to register as ScreenSaver
+        std::string paths[] = {
+            "/org/freedesktop/ScreenSaver",
+            "/ScreenSaver",
+        };
 
-        m_sDBUSState.screenSaverObject->registerMethod("org.freedesktop.ScreenSaver", "Inhibit", "ss", "u", [&](sdbus::MethodCall c) { handleDbusScreensaver(c, true); });
-        m_sDBUSState.screenSaverObject->registerMethod("org.freedesktop.ScreenSaver", "UnInhibit", "u", "", [&](sdbus::MethodCall c) { handleDbusScreensaver(c, false); });
+        try {
+            m_sDBUSState.screenSaverServiceConnection = sdbus::createSessionBusConnection("org.freedesktop.ScreenSaver");
 
-        m_sDBUSState.screenSaverObject->finishRegistration();
-    } catch (std::exception& e) { Debug::log(ERR, "Failed registering for /org/freedesktop/ScreenSaver, perhaps taken?\nerr: {}", e.what()); }
+            for (const std::string& path: paths) {
+                try {
+                    auto obj = sdbus::createObject(*m_sDBUSState.screenSaverServiceConnection, path);
+                    obj->registerMethod("org.freedesktop.ScreenSaver", "Inhibit", "ss", "u", [&](sdbus::MethodCall c) { handleDbusScreensaver(c, true); });
+                    obj->registerMethod("org.freedesktop.ScreenSaver", "UnInhibit", "u", "", [&](sdbus::MethodCall c) { handleDbusScreensaver(c, false); });
+                    obj->finishRegistration();
+
+                    m_sDBUSState.screenSaverObjects.push_back(std::move(obj));
+                } catch (std::exception& e) { Debug::log(ERR, "Failed registering for {}, perhaps taken?\nerr: {}", path, e.what()); }
+            }
+        } catch (std::exception& e) { Debug::log(ERR, "Couldn't connect to session dbus\nerr: {}", e.what()); }
+    }
 }
