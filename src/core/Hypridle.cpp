@@ -490,14 +490,24 @@ void CHypridle::setupDBUS() {
 
     if (!IGNORE_DBUS_INHIBIT) {
         // attempt to register as ScreenSaver
+        std::string paths[] = {
+            "/org/freedesktop/ScreenSaver",
+            "/ScreenSaver",
+        };
+
         try {
             m_sDBUSState.screenSaverServiceConnection = sdbus::createSessionBusConnection("org.freedesktop.ScreenSaver");
-            m_sDBUSState.screenSaverObject            = sdbus::createObject(*m_sDBUSState.screenSaverServiceConnection, "/org/freedesktop/ScreenSaver");
 
-            m_sDBUSState.screenSaverObject->registerMethod("org.freedesktop.ScreenSaver", "Inhibit", "ss", "u", [&](sdbus::MethodCall c) { handleDbusScreensaver(c, true); });
-            m_sDBUSState.screenSaverObject->registerMethod("org.freedesktop.ScreenSaver", "UnInhibit", "u", "", [&](sdbus::MethodCall c) { handleDbusScreensaver(c, false); });
+            for (const std::string& path: paths) {
+                try {
+                    auto obj = sdbus::createObject(*m_sDBUSState.screenSaverServiceConnection, path);
+                    obj->registerMethod("org.freedesktop.ScreenSaver", "Inhibit", "ss", "u", [&](sdbus::MethodCall c) { handleDbusScreensaver(c, true); });
+                    obj->registerMethod("org.freedesktop.ScreenSaver", "UnInhibit", "u", "", [&](sdbus::MethodCall c) { handleDbusScreensaver(c, false); });
+                    obj->finishRegistration();
 
-            m_sDBUSState.screenSaverObject->finishRegistration();
-        } catch (std::exception& e) { Debug::log(ERR, "Failed registering for /org/freedesktop/ScreenSaver, perhaps taken?\nerr: {}", e.what()); }
+                    m_sDBUSState.screenSaverObjects.push_back(std::move(obj));
+                } catch (std::exception& e) { Debug::log(ERR, "Failed registering for {}, perhaps taken?\nerr: {}", path, e.what()); }
+            }
+        } catch (std::exception& e) { Debug::log(ERR, "Couldn't connect to session dbus\nerr: {}", e.what()); }
     }
 }

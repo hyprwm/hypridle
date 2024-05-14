@@ -58,10 +58,10 @@ class CHypridle {
     } m_sWaylandIdleState;
 
     struct {
-        std::unique_ptr<sdbus::IConnection> connection;
-        std::unique_ptr<sdbus::IConnection> screenSaverServiceConnection;
-        std::unique_ptr<sdbus::IObject>     screenSaverObject;
-        std::vector<SDbusInhibitCookie>     inhibitCookies;
+        std::unique_ptr<sdbus::IConnection>          connection;
+        std::unique_ptr<sdbus::IConnection>          screenSaverServiceConnection;
+        std::vector<std::unique_ptr<sdbus::IObject>> screenSaverObjects;
+        std::vector<SDbusInhibitCookie>              inhibitCookies;
     } m_sDBUSState;
 
     struct {
