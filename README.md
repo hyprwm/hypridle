@@ -18,6 +18,7 @@ general {
     before_sleep_cmd = notify-send "Zzz"    # command ran before sleep
     after_sleep_cmd = notify-send "Awake!"  # command ran after sleep
     ignore_dbus_inhibit = false             # whether to ignore dbus-sent idle-inhibit requests (used by e.g. firefox or steam)
+    ignore_systemd_inhibit = false          # whether to ignore systemd-inhibit --what=idle inhibitors
 }
 
 listener {
