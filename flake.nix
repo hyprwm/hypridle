@@ -35,7 +35,7 @@
 
     homeManagerModules = {
       default = self.homeManagerModules.hypridle;
-      hypridle = import ./nix/hm-module.nix self;
+      hypridle = builtins.throw "hypridle: the flake HM module has been removed. Use the module from Home Manager upstream.";
     };
 
     checks = eachSystem (system: self.packages.${system});
