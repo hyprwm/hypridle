@@ -297,21 +297,28 @@ void CHypridle::onResumed(SIdleListener* pListener) {
 
 void CHypridle::onInhibit(bool lock) {
     m_iInhibitLocks += lock ? 1 : -1;
+
     if (m_iInhibitLocks < 0) {
-        // what would be safer appending one or setting to 0?
-        // what if would be equal -2?
-        // you have been warned.
+        Debug::log(WARN, "BUG THIS: inhibit locks < 0: {}", m_iInhibitLocks);
         m_iInhibitLocks = 0;
-        Debug::log(WARN, "BUG THIS: inhibit locks < 0. Brought back to 0.");
-    } else if (m_iInhibitLocks > 0) {
-        Debug::log(LOG, "Inhibit locks: {}", m_iInhibitLocks);
-    } else {
-        Debug::log(LOG, "Inhibit locks: {}", m_iInhibitLocks);
-        if (isIdled && lock) {
-            Debug::log(LOG, "Running from onInhibit() isIdled = true {}", g_pConfigManager->getOnTimeoutCommand());
-            spawn(g_pConfigManager->getOnTimeoutCommand());
+    }
+
+    if (m_iInhibitLocks == 0 && isIdled) {
+        const auto RULES = g_pConfigManager->getRules();
+
+        for (size_t i = 0; i < RULES.size(); ++i) {
+            auto&       l  = m_sWaylandIdleState.listeners[i];
+            const auto& r  = RULES[i];
+
+            ext_idle_notification_v1_destroy(l.notification);
+
+            l.notification = ext_idle_notifier_v1_get_idle_notification(m_sWaylandIdleState.notifier, r.timeout * 1000 /* ms */, m_sWaylandState.seat);
+
+            ext_idle_notification_v1_add_listener(l.notification, &idleListener, &l);
         }
     }
+
+    Debug::log(LOG, "Inhibit locks: {}", m_iInhibitLocks);
 }
 
 CHypridle::SDbusInhibitCookie CHypridle::getDbusInhibitCookie(uint32_t cookie) {
