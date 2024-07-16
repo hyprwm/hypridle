@@ -33,7 +33,7 @@ message(STATUS "Checking deps...")
 
 find_package(Threads REQUIRED)
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(deps REQUIRED IMPORTED_TARGET wayland-client wayland-protocols hyprlang>=0.4.0 sdbus-c++)
+pkg_check_modules(deps REQUIRED IMPORTED_TARGET wayland-client wayland-protocols hyprlang>=0.4.0 hyprutils>=0.2.0 sdbus-c++)
 
 file(GLOB_RECURSE SRCFILES CONFIGURE_DEPENDS "src/*.cpp")
 add_executable(hypridle ${SRCFILES})

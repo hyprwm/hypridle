@@ -1,20 +1,17 @@
 #include "ConfigManager.hpp"
+#include <hyprutils/path/Path.hpp>
 #include <filesystem>
 
-static std::string getConfigDir() {
-    static const char* xdgConfigHome = getenv("XDG_CONFIG_HOME");
-
-    if (xdgConfigHome && std::filesystem::path(xdgConfigHome).is_absolute())
-        return xdgConfigHome;
-
-    return getenv("HOME") + std::string("/.config");
-}
-
 static std::string getMainConfigPath() {
-    return getConfigDir() + "/hypr/hypridle.conf";
+    static const auto paths = Hyprutils::Path::findConfig("hypridle");
+    if (paths.first.has_value())
+        return paths.first.value();
+    else
+        throw std::runtime_error("Could not find config in HOME, XDG_CONFIG_HOME, XDG_CONFIG_DIRS or /etc/hypr.");
 }
 
-CConfigManager::CConfigManager(std::string configPath) : m_config(configPath.empty() ? getMainConfigPath().c_str() : configPath.c_str(), Hyprlang::SConfigOptions{.throwAllErrors = true, .allowMissingConfig = false}) {
+CConfigManager::CConfigManager(std::string configPath) :
+    m_config(configPath.empty() ? getMainConfigPath().c_str() : configPath.c_str(), Hyprlang::SConfigOptions{.throwAllErrors = true, .allowMissingConfig = false}) {
     ;
 }
 
