@@ -12,6 +12,7 @@ in {
 
   hypridle = lib.composeManyExtensions [
     inputs.hyprlang.overlays.default
+    inputs.hyprutils.overlays.default
     (final: prev: {
       hypridle = prev.callPackage ./default.nix {
         stdenv = prev.gcc13Stdenv;
