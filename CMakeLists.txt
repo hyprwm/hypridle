@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.19)
 
-set(VERSION 0.1.2)
+file(READ "${CMAKE_SOURCE_DIR}/VERSION" VER_RAW)
+string(STRIP ${VER_RAW} VERSION)
 
 project(hypridle
     DESCRIPTION "An idle management daemon for Hyprland"
