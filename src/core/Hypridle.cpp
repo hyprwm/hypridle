@@ -476,15 +476,14 @@ void CHypridle::setupDBUS() {
     try {
         auto reply = proxy->callMethod(method);
         reply >> path;
+
+        m_sDBUSState.connection->addMatch("type='signal',path='" + path + "',interface='org.freedesktop.login1.Session'", handleDbusLogin, sdbus::floating_slot_t{});
+        m_sDBUSState.connection->addMatch("type='signal',path='/org/freedesktop/login1',interface='org.freedesktop.login1.Manager'", handleDbusSleep, sdbus::floating_slot_t{});
     } catch (std::exception& e) {
-        Debug::log(CRIT, "Couldn't connect to logind service ({})", e.what());
-        exit(1);
+        Debug::log(WARN, "Couldn't connect to logind service ({})", e.what());
     }
 
     Debug::log(LOG, "Using dbus path {}", path.c_str());
-
-    m_sDBUSState.connection->addMatch("type='signal',path='" + path + "',interface='org.freedesktop.login1.Session'", handleDbusLogin, sdbus::floating_slot_t{});
-    m_sDBUSState.connection->addMatch("type='signal',path='/org/freedesktop/login1',interface='org.freedesktop.login1.Manager'", handleDbusSleep, sdbus::floating_slot_t{});
 
     if (!IGNORE_SYSTEMD_INHIBIT) {
         m_sDBUSState.connection->addMatch("type='signal',path='/org/freedesktop/login1',interface='org.freedesktop.DBus.Properties'", handleDbusBlockInhibitsPropertyChanged, sdbus::floating_slot_t{});
