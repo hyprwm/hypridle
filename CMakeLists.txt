@@ -20,6 +20,8 @@ endif()
 
 include_directories(. "protocols/")
 
+include(GNUInstallDirs)
+
 # configure
 set(CMAKE_CXX_STANDARD 23)
 add_compile_options(-Wall -Wextra -Wno-unused-parameter -Wno-unused-value
@@ -90,3 +92,8 @@ protocol("staging/ext-idle-notify/ext-idle-notify-v1.xml" "ext-idle-notify-v1"
 install(TARGETS hypridle)
 install(FILES ${CMAKE_BINARY_DIR}/systemd/hypridle.service
         DESTINATION "lib/systemd/user")
+
+install(
+  FILES ${CMAKE_SOURCE_DIR}/assets/example.conf
+  DESTINATION ${CMAKE_INSTALL_FULL_DATAROOTDIR}/hypr
+  RENAME hyprlock.conf)
