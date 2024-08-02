@@ -96,4 +96,4 @@ install(FILES ${CMAKE_BINARY_DIR}/systemd/hypridle.service
 install(
   FILES ${CMAKE_SOURCE_DIR}/assets/example.conf
   DESTINATION ${CMAKE_INSTALL_FULL_DATAROOTDIR}/hypr
-  RENAME hyprlock.conf)
+  RENAME hypridle.conf)
