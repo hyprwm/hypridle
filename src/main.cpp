@@ -1,6 +1,7 @@
 
 #include "config/ConfigManager.hpp"
 #include "core/Hypridle.hpp"
+#include "helpers/Log.hpp"
 
 int main(int argc, char** argv, char** envp) {
     std::string configPath;
