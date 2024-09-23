@@ -16,6 +16,11 @@ int main(int argc, char** argv, char** envp) {
             Debug::quiet = true;
 
         else if (arg == "--config" || arg == "-c") {
+            if (i + 1 >= argc) {
+                Debug::log(NONE, "Please provide a path to a config file.");
+                return 1;
+            }
+
             configPath = argv[++i];
         }
     }
