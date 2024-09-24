@@ -17,11 +17,15 @@ int main(int argc, char** argv, char** envp) {
 
         else if (arg == "--config" || arg == "-c") {
             if (i + 1 >= argc) {
-                Debug::log(NONE, "Please provide a path to a config file.");
+                Debug::log(NONE, "After " + arg + " you should provide a path to a config file.");
                 return 1;
             }
 
             configPath = argv[++i];
+            if (configPath[0] == '-') { // Should be fine, because of the null terminator
+                Debug::log(NONE, "After " + arg + " you should provide a path to a config file.");
+                return 1;
+            }
         }
     }
 
