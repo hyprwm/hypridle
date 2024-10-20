@@ -307,8 +307,8 @@ void CHypridle::onInhibit(bool lock) {
         const auto RULES = g_pConfigManager->getRules();
 
         for (size_t i = 0; i < RULES.size(); ++i) {
-            auto&       l  = m_sWaylandIdleState.listeners[i];
-            const auto& r  = RULES[i];
+            auto&       l = m_sWaylandIdleState.listeners[i];
+            const auto& r = RULES[i];
 
             ext_idle_notification_v1_destroy(l.notification);
 
@@ -338,7 +338,8 @@ bool CHypridle::unregisterDbusInhibitCookie(const CHypridle::SDbusInhibitCookie&
     const auto IT = std::find_if(m_sDBUSState.inhibitCookies.begin(), m_sDBUSState.inhibitCookies.end(),
                                  [&cookie](const CHypridle::SDbusInhibitCookie& item) { return item.cookie == cookie.cookie; });
 
-    if (IT == m_sDBUSState.inhibitCookies.end()) return false;
+    if (IT == m_sDBUSState.inhibitCookies.end())
+        return false;
 
     m_sDBUSState.inhibitCookies.erase(IT);
     return true;
@@ -346,7 +347,7 @@ bool CHypridle::unregisterDbusInhibitCookie(const CHypridle::SDbusInhibitCookie&
 
 bool CHypridle::unregisterDbusInhibitCookies(const std::string& ownerID) {
     const auto IT = std::remove_if(m_sDBUSState.inhibitCookies.begin(), m_sDBUSState.inhibitCookies.end(),
-                                 [&ownerID](const CHypridle::SDbusInhibitCookie& item) { return item.ownerID == ownerID; });
+                                   [&ownerID](const CHypridle::SDbusInhibitCookie& item) { return item.ownerID == ownerID; });
 
     if (IT == m_sDBUSState.inhibitCookies.end())
         return false;
@@ -421,7 +422,7 @@ void handleDbusBlockInhibits(const std::string& inhibits) {
 }
 
 void handleDbusBlockInhibitsPropertyChanged(sdbus::Message& msg) {
-    std::string interface;
+    std::string                           interface;
     std::map<std::string, sdbus::Variant> changedProperties;
     msg >> interface >> changedProperties;
     if (changedProperties.contains("BlockInhibited")) {
@@ -484,7 +485,8 @@ void handleDbusNameOwnerChanged(sdbus::Message& msg) {
     std::string name, oldOwner, newOwner;
     msg >> name >> oldOwner >> newOwner;
 
-    if (!newOwner.empty()) return;
+    if (!newOwner.empty())
+        return;
 
     if (g_pHypridle->unregisterDbusInhibitCookies(oldOwner)) {
         Debug::log(LOG, "App with owner {} disconnected", oldOwner);
@@ -496,8 +498,8 @@ void CHypridle::setupDBUS() {
     static auto const IGNORE_DBUS_INHIBIT    = **(Hyprlang::INT* const*)g_pConfigManager->getValuePtr("general:ignore_dbus_inhibit");
     static auto const IGNORE_SYSTEMD_INHIBIT = **(Hyprlang::INT* const*)g_pConfigManager->getValuePtr("general:ignore_systemd_inhibit");
 
-    auto proxy  = sdbus::createProxy("org.freedesktop.login1", "/org/freedesktop/login1");
-    auto method = proxy->createMethodCall("org.freedesktop.login1.Manager", "GetSession");
+    auto              proxy  = sdbus::createProxy("org.freedesktop.login1", "/org/freedesktop/login1");
+    auto              method = proxy->createMethodCall("org.freedesktop.login1.Manager", "GetSession");
     method << "auto";
     sdbus::ObjectPath path;
 
@@ -507,14 +509,13 @@ void CHypridle::setupDBUS() {
 
         m_sDBUSState.connection->addMatch("type='signal',path='" + path + "',interface='org.freedesktop.login1.Session'", handleDbusLogin, sdbus::floating_slot_t{});
         m_sDBUSState.connection->addMatch("type='signal',path='/org/freedesktop/login1',interface='org.freedesktop.login1.Manager'", handleDbusSleep, sdbus::floating_slot_t{});
-    } catch (std::exception& e) {
-        Debug::log(WARN, "Couldn't connect to logind service ({})", e.what());
-    }
+    } catch (std::exception& e) { Debug::log(WARN, "Couldn't connect to logind service ({})", e.what()); }
 
     Debug::log(LOG, "Using dbus path {}", path.c_str());
 
     if (!IGNORE_SYSTEMD_INHIBIT) {
-        m_sDBUSState.connection->addMatch("type='signal',path='/org/freedesktop/login1',interface='org.freedesktop.DBus.Properties'", handleDbusBlockInhibitsPropertyChanged, sdbus::floating_slot_t{});
+        m_sDBUSState.connection->addMatch("type='signal',path='/org/freedesktop/login1',interface='org.freedesktop.DBus.Properties'", handleDbusBlockInhibitsPropertyChanged,
+                                          sdbus::floating_slot_t{});
 
         try {
             std::string value = proxy->getProperty("BlockInhibited").onInterface("org.freedesktop.login1.Manager");
@@ -532,7 +533,7 @@ void CHypridle::setupDBUS() {
         try {
             m_sDBUSState.screenSaverServiceConnection = sdbus::createSessionBusConnection("org.freedesktop.ScreenSaver");
 
-            for (const std::string& path: paths) {
+            for (const std::string& path : paths) {
                 try {
                     auto obj = sdbus::createObject(*m_sDBUSState.screenSaverServiceConnection, path);
                     obj->registerMethod("org.freedesktop.ScreenSaver", "Inhibit", "ss", "u", [&](sdbus::MethodCall c) { handleDbusScreensaver(c, true); });
@@ -543,7 +544,8 @@ void CHypridle::setupDBUS() {
                 } catch (std::exception& e) { Debug::log(ERR, "Failed registering for {}, perhaps taken?\nerr: {}", path, e.what()); }
             }
 
-            m_sDBUSState.screenSaverServiceConnection->addMatch("type='signal',sender='org.freedesktop.DBus',interface='org.freedesktop.DBus',member='NameOwnerChanged'", handleDbusNameOwnerChanged, sdbus::floating_slot_t{});
+            m_sDBUSState.screenSaverServiceConnection->addMatch("type='signal',sender='org.freedesktop.DBus',interface='org.freedesktop.DBus',member='NameOwnerChanged'",
+                                                                handleDbusNameOwnerChanged, sdbus::floating_slot_t{});
         } catch (std::exception& e) { Debug::log(ERR, "Couldn't connect to session dbus\nerr: {}", e.what()); }
     }
 }
