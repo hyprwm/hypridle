@@ -20,7 +20,7 @@ class CHypridle {
 
     struct SDbusInhibitCookie {
         uint32_t    cookie = 0;
-        std::string app, reason;
+        std::string app, reason, ownerID;
     };
 
     void               run();
@@ -35,7 +35,8 @@ class CHypridle {
 
     SDbusInhibitCookie getDbusInhibitCookie(uint32_t cookie);
     void               registerDbusInhibitCookie(SDbusInhibitCookie& cookie);
-    void               unregisterDbusInhibitCookie(const SDbusInhibitCookie& cookie);
+    bool               unregisterDbusInhibitCookie(const SDbusInhibitCookie& cookie);
+    bool               unregisterDbusInhibitCookies(const std::string& ownerID);
 
   private:
     void    setupDBUS();

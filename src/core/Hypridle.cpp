@@ -334,14 +334,25 @@ void CHypridle::registerDbusInhibitCookie(CHypridle::SDbusInhibitCookie& cookie)
     m_sDBUSState.inhibitCookies.push_back(cookie);
 }
 
-void CHypridle::unregisterDbusInhibitCookie(const CHypridle::SDbusInhibitCookie& cookie) {
+bool CHypridle::unregisterDbusInhibitCookie(const CHypridle::SDbusInhibitCookie& cookie) {
     const auto IT = std::find_if(m_sDBUSState.inhibitCookies.begin(), m_sDBUSState.inhibitCookies.end(),
                                  [&cookie](const CHypridle::SDbusInhibitCookie& item) { return item.cookie == cookie.cookie; });
 
+    if (IT == m_sDBUSState.inhibitCookies.end()) return false;
+
+    m_sDBUSState.inhibitCookies.erase(IT);
+    return true;
+}
+
+bool CHypridle::unregisterDbusInhibitCookies(const std::string& ownerID) {
+    const auto IT = std::remove_if(m_sDBUSState.inhibitCookies.begin(), m_sDBUSState.inhibitCookies.end(),
+                                 [&ownerID](const CHypridle::SDbusInhibitCookie& item) { return item.ownerID == ownerID; });
+
     if (IT == m_sDBUSState.inhibitCookies.end())
-        Debug::log(WARN, "BUG THIS: attempted to unregister unknown cookie");
-    else
-        m_sDBUSState.inhibitCookies.erase(IT);
+        return false;
+
+    m_sDBUSState.inhibitCookies.erase(IT, m_sDBUSState.inhibitCookies.end());
+    return true;
 }
 
 void handleDbusLogin(sdbus::Message& msg) {
@@ -420,6 +431,7 @@ void handleDbusBlockInhibitsPropertyChanged(sdbus::Message& msg) {
 
 void handleDbusScreensaver(sdbus::MethodCall call, bool inhibit) {
     std::string app = "?", reason = "?";
+    std::string ownerID = call.getSender();
 
     if (inhibit) {
         call >> app;
@@ -432,13 +444,17 @@ void handleDbusScreensaver(sdbus::MethodCall call, bool inhibit) {
         if (COOKIE.cookie == 0) {
             Debug::log(WARN, "No cookie in uninhibit");
         } else {
-            app    = COOKIE.app;
-            reason = COOKIE.reason;
-            g_pHypridle->unregisterDbusInhibitCookie(COOKIE);
+            app     = COOKIE.app;
+            reason  = COOKIE.reason;
+            ownerID = COOKIE.ownerID;
+
+            if (!g_pHypridle->unregisterDbusInhibitCookie(COOKIE)) {
+                Debug::log(WARN, "BUG THIS: attempted to unregister unknown cookie");
+            };
         }
     }
 
-    Debug::log(LOG, "ScreenSaver inhibit: {} dbus message from {} with content {}", inhibit, app, reason);
+    Debug::log(LOG, "ScreenSaver inhibit: {} dbus message from {} (owner: {}) with content {}", inhibit, app, ownerID, reason);
 
     if (inhibit)
         g_pHypridle->onInhibit(true);
@@ -448,7 +464,7 @@ void handleDbusScreensaver(sdbus::MethodCall call, bool inhibit) {
     static int cookieID = 1337;
 
     if (inhibit) {
-        auto cookie = CHypridle::SDbusInhibitCookie{uint32_t{cookieID}, app, reason};
+        auto cookie = CHypridle::SDbusInhibitCookie{uint32_t{cookieID}, app, reason, ownerID};
 
         auto reply = call.createReply();
         reply << uint32_t{cookieID++};
@@ -461,6 +477,18 @@ void handleDbusScreensaver(sdbus::MethodCall call, bool inhibit) {
         auto reply = call.createReply();
         reply.send();
         Debug::log(TRACE, "Uninhibit response sent");
+    }
+}
+
+void handleDbusNameOwnerChanged(sdbus::Message& msg) {
+    std::string name, oldOwner, newOwner;
+    msg >> name >> oldOwner >> newOwner;
+
+    if (!newOwner.empty()) return;
+
+    if (g_pHypridle->unregisterDbusInhibitCookies(oldOwner)) {
+        Debug::log(LOG, "App with owner {} disconnected", oldOwner);
+        g_pHypridle->onInhibit(false);
     }
 }
 
@@ -514,6 +542,8 @@ void CHypridle::setupDBUS() {
                     m_sDBUSState.screenSaverObjects.push_back(std::move(obj));
                 } catch (std::exception& e) { Debug::log(ERR, "Failed registering for {}, perhaps taken?\nerr: {}", path, e.what()); }
             }
+
+            m_sDBUSState.screenSaverServiceConnection->addMatch("type='signal',sender='org.freedesktop.DBus',interface='org.freedesktop.DBus',member='NameOwnerChanged'", handleDbusNameOwnerChanged, sdbus::floating_slot_t{});
         } catch (std::exception& e) { Debug::log(ERR, "Couldn't connect to session dbus\nerr: {}", e.what()); }
     }
 }
