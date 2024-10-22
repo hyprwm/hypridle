@@ -41,7 +41,7 @@ pkg_check_modules(
   wayland-protocols
   hyprlang>=0.4.0
   hyprutils>=0.2.0
-  sdbus-c++)
+  sdbus-c++>=0.2.0)
 
 file(GLOB_RECURSE SRCFILES CONFIGURE_DEPENDS "src/*.cpp")
 add_executable(hypridle ${SRCFILES})

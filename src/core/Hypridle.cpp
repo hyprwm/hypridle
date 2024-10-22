@@ -153,7 +153,7 @@ void CHypridle::enterEventLoop() {
 
         if (pollfds[0].revents & POLLIN /* dbus */) {
             Debug::log(TRACE, "got dbus event");
-            while (m_sDBUSState.connection->processPendingRequest()) {
+            while (m_sDBUSState.connection->processPendingEvent()) {
                 ;
             }
         }
@@ -171,7 +171,7 @@ void CHypridle::enterEventLoop() {
 
         if (pollfdsCount > 2 && pollfds[2].revents & POLLIN /* dbus2 */) {
             Debug::log(TRACE, "got dbus event");
-            while (m_sDBUSState.screenSaverServiceConnection->processPendingRequest()) {
+            while (m_sDBUSState.screenSaverServiceConnection->processPendingEvent()) {
                 ;
             }
         }
@@ -356,14 +356,14 @@ bool CHypridle::unregisterDbusInhibitCookies(const std::string& ownerID) {
     return true;
 }
 
-void handleDbusLogin(sdbus::Message& msg) {
+static void handleDbusLogin(sdbus::Message msg) {
     // lock & unlock
     static auto* const PLOCKCMD   = (Hyprlang::STRING const*)g_pConfigManager->getValuePtr("general:lock_cmd");
     static auto* const PUNLOCKCMD = (Hyprlang::STRING const*)g_pConfigManager->getValuePtr("general:unlock_cmd");
 
     Debug::log(LOG, "Got dbus .Session");
 
-    const auto MEMBER = msg.getMemberName();
+    const std::string MEMBER = msg.getMemberName();
     if (MEMBER == "Lock") {
         Debug::log(LOG, "Got Lock from dbus");
 
@@ -381,8 +381,8 @@ void handleDbusLogin(sdbus::Message& msg) {
     }
 }
 
-void handleDbusSleep(sdbus::Message& msg) {
-    const auto MEMBER = msg.getMemberName();
+static void handleDbusSleep(sdbus::Message msg) {
+    const std::string MEMBER = msg.getMemberName();
 
     if (MEMBER != "PrepareForSleep")
         return;
@@ -421,7 +421,7 @@ void handleDbusBlockInhibits(const std::string& inhibits) {
     }
 }
 
-void handleDbusBlockInhibitsPropertyChanged(sdbus::Message& msg) {
+static void handleDbusBlockInhibitsPropertyChanged(sdbus::Message msg) {
     std::string                           interface;
     std::map<std::string, sdbus::Variant> changedProperties;
     msg >> interface >> changedProperties;
@@ -430,16 +430,10 @@ void handleDbusBlockInhibitsPropertyChanged(sdbus::Message& msg) {
     }
 }
 
-void handleDbusScreensaver(sdbus::MethodCall call, bool inhibit) {
-    std::string app = "?", reason = "?";
-    std::string ownerID = call.getSender();
+static int handleDbusScreensaver(std::string app, std::string reason, uint32_t cookie, bool inhibit, const char* sender) {
+    std::string ownerID = sender;
 
-    if (inhibit) {
-        call >> app;
-        call >> reason;
-    } else {
-        uint32_t cookie = 0;
-        call >> cookie;
+    if (!inhibit) {
         Debug::log(TRACE, "Read uninhibit cookie: {}", cookie);
         const auto COOKIE = g_pHypridle->getDbusInhibitCookie(cookie);
         if (COOKIE.cookie == 0) {
@@ -449,9 +443,8 @@ void handleDbusScreensaver(sdbus::MethodCall call, bool inhibit) {
             reason  = COOKIE.reason;
             ownerID = COOKIE.ownerID;
 
-            if (!g_pHypridle->unregisterDbusInhibitCookie(COOKIE)) {
+            if (!g_pHypridle->unregisterDbusInhibitCookie(COOKIE))
                 Debug::log(WARN, "BUG THIS: attempted to unregister unknown cookie");
-            };
         }
     }
 
@@ -467,21 +460,17 @@ void handleDbusScreensaver(sdbus::MethodCall call, bool inhibit) {
     if (inhibit) {
         auto cookie = CHypridle::SDbusInhibitCookie{uint32_t{cookieID}, app, reason, ownerID};
 
-        auto reply = call.createReply();
-        reply << uint32_t{cookieID++};
-        reply.send();
-
-        Debug::log(LOG, "Cookie {} sent", cookieID - 1);
+        Debug::log(LOG, "Cookie {} sent", cookieID);
 
         g_pHypridle->registerDbusInhibitCookie(cookie);
-    } else {
-        auto reply = call.createReply();
-        reply.send();
-        Debug::log(TRACE, "Uninhibit response sent");
+
+        return cookieID++;
     }
+
+    return 0;
 }
 
-void handleDbusNameOwnerChanged(sdbus::Message& msg) {
+static void handleDbusNameOwnerChanged(sdbus::Message msg) {
     std::string name, oldOwner, newOwner;
     msg >> name >> oldOwner >> newOwner;
 
@@ -498,8 +487,8 @@ void CHypridle::setupDBUS() {
     static auto const IGNORE_DBUS_INHIBIT    = **(Hyprlang::INT* const*)g_pConfigManager->getValuePtr("general:ignore_dbus_inhibit");
     static auto const IGNORE_SYSTEMD_INHIBIT = **(Hyprlang::INT* const*)g_pConfigManager->getValuePtr("general:ignore_systemd_inhibit");
 
-    auto              proxy  = sdbus::createProxy("org.freedesktop.login1", "/org/freedesktop/login1");
-    auto              method = proxy->createMethodCall("org.freedesktop.login1.Manager", "GetSession");
+    auto              proxy  = sdbus::createProxy(sdbus::ServiceName{"org.freedesktop.login1"}, sdbus::ObjectPath{"/org/freedesktop/login1"});
+    auto              method = proxy->createMethodCall(sdbus::InterfaceName{"org.freedesktop.login1.Manager"}, sdbus::MethodName{"GetSession"});
     method << "auto";
     sdbus::ObjectPath path;
 
@@ -507,18 +496,17 @@ void CHypridle::setupDBUS() {
         auto reply = proxy->callMethod(method);
         reply >> path;
 
-        m_sDBUSState.connection->addMatch("type='signal',path='" + path + "',interface='org.freedesktop.login1.Session'", handleDbusLogin, sdbus::floating_slot_t{});
-        m_sDBUSState.connection->addMatch("type='signal',path='/org/freedesktop/login1',interface='org.freedesktop.login1.Manager'", handleDbusSleep, sdbus::floating_slot_t{});
+        m_sDBUSState.connection->addMatch("type='signal',path='" + path + "',interface='org.freedesktop.login1.Session'", ::handleDbusLogin);
+        m_sDBUSState.connection->addMatch("type='signal',path='/org/freedesktop/login1',interface='org.freedesktop.login1.Manager'", ::handleDbusSleep);
     } catch (std::exception& e) { Debug::log(WARN, "Couldn't connect to logind service ({})", e.what()); }
 
     Debug::log(LOG, "Using dbus path {}", path.c_str());
 
     if (!IGNORE_SYSTEMD_INHIBIT) {
-        m_sDBUSState.connection->addMatch("type='signal',path='/org/freedesktop/login1',interface='org.freedesktop.DBus.Properties'", handleDbusBlockInhibitsPropertyChanged,
-                                          sdbus::floating_slot_t{});
+        m_sDBUSState.connection->addMatch("type='signal',path='/org/freedesktop/login1',interface='org.freedesktop.DBus.Properties'", ::handleDbusBlockInhibitsPropertyChanged);
 
         try {
-            std::string value = proxy->getProperty("BlockInhibited").onInterface("org.freedesktop.login1.Manager");
+            std::string value = (proxy->getProperty("BlockInhibited").onInterface("org.freedesktop.login1.Manager")).get<std::string>();
             handleDbusBlockInhibits(value);
         } catch (std::exception& e) { Debug::log(WARN, "Couldn't retrieve current systemd inhibits ({})", e.what()); }
     }
@@ -531,21 +519,26 @@ void CHypridle::setupDBUS() {
         };
 
         try {
-            m_sDBUSState.screenSaverServiceConnection = sdbus::createSessionBusConnection("org.freedesktop.ScreenSaver");
+            m_sDBUSState.screenSaverServiceConnection = sdbus::createSessionBusConnection(sdbus::ServiceName{"org.freedesktop.ScreenSaver"});
 
             for (const std::string& path : paths) {
                 try {
-                    auto obj = sdbus::createObject(*m_sDBUSState.screenSaverServiceConnection, path);
-                    obj->registerMethod("org.freedesktop.ScreenSaver", "Inhibit", "ss", "u", [&](sdbus::MethodCall c) { handleDbusScreensaver(c, true); });
-                    obj->registerMethod("org.freedesktop.ScreenSaver", "UnInhibit", "u", "", [&](sdbus::MethodCall c) { handleDbusScreensaver(c, false); });
-                    obj->finishRegistration();
+                    auto obj = sdbus::createObject(*m_sDBUSState.screenSaverServiceConnection, sdbus::ObjectPath{path});
+
+                    obj->addVTable(sdbus::registerMethod("Inhibit").implementedAs([object = obj.get()](std::string s1, std::string s2) {
+                           return handleDbusScreensaver(s1, s2, 0, true, object->getCurrentlyProcessedMessage().getSender());
+                       }),
+                                   sdbus::registerMethod("UnInhibit").implementedAs([object = obj.get()](uint32_t c) {
+                                       handleDbusScreensaver("", "", c, true, object->getCurrentlyProcessedMessage().getSender());
+                                   }))
+                        .forInterface(sdbus::InterfaceName{"org.freedesktop.ScreenSaver"});
 
                     m_sDBUSState.screenSaverObjects.push_back(std::move(obj));
                 } catch (std::exception& e) { Debug::log(ERR, "Failed registering for {}, perhaps taken?\nerr: {}", path, e.what()); }
             }
 
             m_sDBUSState.screenSaverServiceConnection->addMatch("type='signal',sender='org.freedesktop.DBus',interface='org.freedesktop.DBus',member='NameOwnerChanged'",
-                                                                handleDbusNameOwnerChanged, sdbus::floating_slot_t{});
+                                                                ::handleDbusNameOwnerChanged);
         } catch (std::exception& e) { Debug::log(ERR, "Couldn't connect to session dbus\nerr: {}", e.what()); }
     }
 }
