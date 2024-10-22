@@ -527,7 +527,7 @@ void CHypridle::setupDBUS() {
                            return handleDbusScreensaver(s1, s2, 0, true, object->getCurrentlyProcessedMessage().getSender());
                        }),
                                    sdbus::registerMethod("UnInhibit").implementedAs([object = obj.get()](uint32_t c) {
-                                       handleDbusScreensaver("", "", c, true, object->getCurrentlyProcessedMessage().getSender());
+                                       handleDbusScreensaver("", "", c, false, object->getCurrentlyProcessedMessage().getSender());
                                    }))
                         .forInterface(sdbus::InterfaceName{"org.freedesktop.ScreenSaver"});
 
