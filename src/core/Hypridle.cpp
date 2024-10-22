@@ -487,14 +487,11 @@ void CHypridle::setupDBUS() {
     static auto const IGNORE_DBUS_INHIBIT    = **(Hyprlang::INT* const*)g_pConfigManager->getValuePtr("general:ignore_dbus_inhibit");
     static auto const IGNORE_SYSTEMD_INHIBIT = **(Hyprlang::INT* const*)g_pConfigManager->getValuePtr("general:ignore_systemd_inhibit");
 
-    auto              proxy  = sdbus::createProxy(sdbus::ServiceName{"org.freedesktop.login1"}, sdbus::ObjectPath{"/org/freedesktop/login1"});
-    auto              method = proxy->createMethodCall(sdbus::InterfaceName{"org.freedesktop.login1.Manager"}, sdbus::MethodName{"GetSession"});
-    method << "auto";
+    auto              proxy = sdbus::createProxy(sdbus::ServiceName{"org.freedesktop.login1"}, sdbus::ObjectPath{"/org/freedesktop/login1"});
     sdbus::ObjectPath path;
 
     try {
-        auto reply = proxy->callMethod(method);
-        reply >> path;
+        proxy->callMethod("GetSession").onInterface("org.freedesktop.login1.Manager").storeResultsTo(path);
 
         m_sDBUSState.connection->addMatch("type='signal',path='" + path + "',interface='org.freedesktop.login1.Session'", ::handleDbusLogin);
         m_sDBUSState.connection->addMatch("type='signal',path='/org/freedesktop/login1',interface='org.freedesktop.login1.Manager'", ::handleDbusSleep);
