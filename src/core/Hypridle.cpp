@@ -498,8 +498,6 @@ void CHypridle::setupDBUS() {
         m_sDBUSState.connection->addMatch("type='signal',path='/org/freedesktop/login1',interface='org.freedesktop.login1.Manager'", ::handleDbusSleep);
     } catch (std::exception& e) { Debug::log(WARN, "Couldn't connect to logind service ({})", e.what()); }
 
-    systemConnection.reset();
-
     Debug::log(LOG, "Using dbus path {}", path.c_str());
 
     if (!IGNORE_SYSTEMD_INHIBIT) {
@@ -541,4 +539,6 @@ void CHypridle::setupDBUS() {
                                                                 ::handleDbusNameOwnerChanged);
         } catch (std::exception& e) { Debug::log(ERR, "Couldn't connect to session dbus\nerr: {}", e.what()); }
     }
+
+    systemConnection.reset();
 }
