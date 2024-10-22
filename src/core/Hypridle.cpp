@@ -487,15 +487,18 @@ void CHypridle::setupDBUS() {
     static auto const IGNORE_DBUS_INHIBIT    = **(Hyprlang::INT* const*)g_pConfigManager->getValuePtr("general:ignore_dbus_inhibit");
     static auto const IGNORE_SYSTEMD_INHIBIT = **(Hyprlang::INT* const*)g_pConfigManager->getValuePtr("general:ignore_systemd_inhibit");
 
-    auto              proxy = sdbus::createProxy(sdbus::ServiceName{"org.freedesktop.login1"}, sdbus::ObjectPath{"/org/freedesktop/login1"});
+    auto              systemConnection = sdbus::createSystemBusConnection();
+    auto              proxy            = sdbus::createProxy(*systemConnection, sdbus::ServiceName{"org.freedesktop.login1"}, sdbus::ObjectPath{"/org/freedesktop/login1"});
     sdbus::ObjectPath path;
 
     try {
-        proxy->callMethod("GetSession").onInterface("org.freedesktop.login1.Manager").storeResultsTo(path);
+        proxy->callMethod("GetSession").onInterface("org.freedesktop.login1.Manager").withArguments(std::string{"auto"}).storeResultsTo(path);
 
         m_sDBUSState.connection->addMatch("type='signal',path='" + path + "',interface='org.freedesktop.login1.Session'", ::handleDbusLogin);
         m_sDBUSState.connection->addMatch("type='signal',path='/org/freedesktop/login1',interface='org.freedesktop.login1.Manager'", ::handleDbusSleep);
     } catch (std::exception& e) { Debug::log(WARN, "Couldn't connect to logind service ({})", e.what()); }
+
+    systemConnection.reset();
 
     Debug::log(LOG, "Using dbus path {}", path.c_str());
 
