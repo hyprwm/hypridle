@@ -430,7 +430,7 @@ static void handleDbusBlockInhibitsPropertyChanged(sdbus::Message msg) {
     }
 }
 
-static int handleDbusScreensaver(std::string app, std::string reason, uint32_t cookie, bool inhibit, const char* sender) {
+static uint32_t handleDbusScreensaver(std::string app, std::string reason, uint32_t cookie, bool inhibit, const char* sender) {
     std::string ownerID = sender;
 
     if (!inhibit) {
