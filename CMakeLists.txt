@@ -20,7 +20,6 @@ endif()
 
 include_directories(. "protocols/")
 
-include(GNUInstallDirs)
 
 # configure
 set(CMAKE_CXX_STANDARD 23)
@@ -88,10 +87,12 @@ make_directory(${CMAKE_SOURCE_DIR}/protocols) # we don't ship any custom ones so
 protocol("staging/ext-idle-notify/ext-idle-notify-v1.xml" "ext-idle-notify-v1"
          false)
 
+include(GNUInstallDirs)
+
 # Installation
 install(TARGETS hypridle)
 install(FILES ${CMAKE_BINARY_DIR}/systemd/hypridle.service
-        DESTINATION "lib/systemd/user")
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/systemd/user)
 
 install(
   FILES ${CMAKE_SOURCE_DIR}/assets/example.conf
