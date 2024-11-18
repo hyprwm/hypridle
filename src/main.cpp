@@ -15,6 +15,11 @@ int main(int argc, char** argv, char** envp) {
         else if (arg == "--quiet" || arg == "-q")
             Debug::quiet = true;
 
+        else if (arg == "--version" || arg == "-V") {
+            Debug::log(NONE, "hypridle v{}", HYPRIDLE_VERSION);
+            return 0;
+        }
+
         else if (arg == "--config" || arg == "-c") {
             if (i + 1 >= argc) {
                 Debug::log(NONE, "After " + arg + " you should provide a path to a config file.");

@@ -18,6 +18,8 @@ else()
   message(STATUS "Configuring hypridle in Release with CMake")
 endif()
 
+add_compile_definitions(HYPRIDLE_VERSION="${VERSION}")
+
 include_directories(. "protocols/")
 
 include(GNUInstallDirs)
