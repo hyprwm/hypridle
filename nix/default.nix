@@ -2,9 +2,10 @@
   lib,
   stdenv,
   cmake,
-  pkg-config,
+  hyprland-protocols,
   hyprlang,
   hyprutils,
+  pkg-config,
   sdbus-cpp,
   systemd,
   wayland,
@@ -24,6 +25,7 @@ stdenv.mkDerivation {
   ];
 
   buildInputs = [
+    hyprland-protocols
     hyprlang
     hyprutils
     sdbus-cpp

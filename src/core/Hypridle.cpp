@@ -1,6 +1,8 @@
 #include "Hypridle.hpp"
 #include "../helpers/Log.hpp"
 #include "../config/ConfigManager.hpp"
+#include "ext-idle-notify-v1-protocol.h"
+#include "hyprland-lock-notify-v1-protocol.h"
 #include "signal.h"
 #include <sys/wait.h>
 #include <sys/poll.h>
@@ -44,6 +46,19 @@ inline const ext_idle_notification_v1_listener idleListener = {
     .resumed = handleResumed,
 };
 
+void handleLocked(void* data, hyprland_lock_notification_v1* hyprland_lock_notification_v1) {
+    Debug::log(LOG, "Locked");
+}
+
+void handleUnlocked(void* data, hyprland_lock_notification_v1* hyprland_lock_notification_v1) {
+    Debug::log(LOG, "Unlocked");
+}
+
+inline const hyprland_lock_notification_v1_listener lockListener = {
+    .locked   = handleLocked,
+    .unlocked = handleUnlocked,
+};
+
 void CHypridle::run() {
     m_sWaylandState.registry = wl_display_get_registry(m_sWaylandState.display);
 
@@ -72,6 +87,12 @@ void CHypridle::run() {
     }
 
     wl_display_roundtrip(m_sWaylandState.display);
+
+    if (m_sWaylandState.lockNotifier) {
+        m_sWaylandState.lockNotification = hyprland_lock_notifier_v1_get_lock_notification(m_sWaylandState.lockNotifier);
+
+        hyprland_lock_notification_v1_add_listener(m_sWaylandState.lockNotification, &lockListener, nullptr);
+    }
 
     Debug::log(LOG, "wayland done, registering dbus");
 
@@ -194,6 +215,9 @@ void CHypridle::onGlobal(void* data, struct wl_registry* registry, uint32_t name
     if (IFACE == ext_idle_notifier_v1_interface.name) {
         m_sWaylandIdleState.notifier = (ext_idle_notifier_v1*)wl_registry_bind(registry, name, &ext_idle_notifier_v1_interface, version);
         Debug::log(LOG, "   > Bound to {} v{}", IFACE, version);
+    } else if (IFACE == hyprland_lock_notifier_v1_interface.name) {
+        m_sWaylandState.lockNotifier = (hyprland_lock_notifier_v1*)wl_registry_bind(registry, name, &hyprland_lock_notifier_v1_interface, version);
+        Debug::log(LOG, "   > Bound to {} v{}", IFACE, version);
     } else if (IFACE == wl_seat_interface.name) {
         if (m_sWaylandState.seat) {
             Debug::log(WARN, "Hypridle does not support multi-seat configurations. Only binding to the first seat.");
@@ -293,6 +317,16 @@ void CHypridle::onResumed(SIdleListener* pListener) {
 
     Debug::log(LOG, "Running {}", pListener->onRestore);
     spawn(pListener->onRestore);
+}
+
+void CHypridle::onLocked() {
+    Debug::log(LOG, "Locked");
+    m_isLocked = true;
+
+    if (const auto* const PLOCKCMD = (Hyprlang::STRING const*)g_pConfigManager->getValuePtr("general:on_lock_cmd"); !PLOCKCMD->empty()) {
+        Debug::log(LOG, "Running {}", *PLOCKCMD);
+        spawn(*PLOCKCMD);
+    }
 }
 
 void CHypridle::onInhibit(bool lock) {

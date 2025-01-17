@@ -7,6 +7,7 @@
 #include <condition_variable>
 
 #include "ext-idle-notify-v1-protocol.h"
+#include "hyprland-lock-notify-v1-protocol.h"
 
 class CHypridle {
   public:
@@ -31,6 +32,9 @@ class CHypridle {
     void               onIdled(SIdleListener*);
     void               onResumed(SIdleListener*);
 
+    void               onLocked();
+    void               onUnlocked();
+
     void               onInhibit(bool lock);
 
     SDbusInhibitCookie getDbusInhibitCookie(uint32_t cookie);
@@ -44,12 +48,15 @@ class CHypridle {
 
     bool    m_bTerminate    = false;
     bool    isIdled         = false;
+    bool    m_isLocked      = false;
     int64_t m_iInhibitLocks = 0;
 
     struct {
-        wl_display*  display  = nullptr;
-        wl_registry* registry = nullptr;
-        wl_seat*     seat     = nullptr;
+        wl_display*                    display          = nullptr;
+        wl_registry*                   registry         = nullptr;
+        wl_seat*                       seat             = nullptr;
+        hyprland_lock_notifier_v1*     lockNotifier     = nullptr;
+        hyprland_lock_notification_v1* lockNotification = nullptr;
     } m_sWaylandState;
 
     struct {

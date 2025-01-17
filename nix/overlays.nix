@@ -13,6 +13,7 @@ in {
   default = inputs.self.overlays.hypridle;
 
   hypridle = lib.composeManyExtensions [
+    inputs.hyprland-protocols.overlays.default
     inputs.hyprlang.overlays.default
     inputs.hyprutils.overlays.default
     inputs.self.overlays.sdbuscpp

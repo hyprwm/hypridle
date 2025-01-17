@@ -85,10 +85,17 @@ function(protocol protoPath protoName external)
   endif()
 endfunction()
 
+pkg_check_modules(hyprland_protocols_dep REQUIRED IMPORTED_TARGET hyprland-protocols>=0.4.0)
+pkg_get_variable(HYPRLAND_PROTOCOLS hyprland-protocols pkgdatadir)
+message(STATUS "hyprland-protocols dependency set to ${HYPRLAND_PROTOCOLS}")
+
 make_directory(${CMAKE_SOURCE_DIR}/protocols) # we don't ship any custom ones so
                                               # the dir won't be there
+
 protocol("staging/ext-idle-notify/ext-idle-notify-v1.xml" "ext-idle-notify-v1"
          false)
+protocol("${HYPRLAND_PROTOCOLS}/protocols/hyprland-lock-notify-v1.xml" "hyprland-lock-notify-v1"
+         true)
 
 # Installation
 install(TARGETS hypridle)

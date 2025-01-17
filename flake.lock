@@ -1,5 +1,27 @@
 {
   "nodes": {
+    "hyprland-protocols": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ],
+        "systems": [
+          "systems"
+        ]
+      },
+      "locked": {
+        "lastModified": 1737053288,
+        "narHash": "sha256-RV6n5M5kewrOfpDMdVzj5oVRhVHiZpjDcaOHGYMcnRo=",
+        "rev": "5b17e27fde2155eeb96ff487b7721e5df0a72296",
+        "revCount": 30,
+        "type": "git",
+        "url": "file:///home/max/desk/hyprland-protocols"
+      },
+      "original": {
+        "type": "git",
+        "url": "file:///home/max/desk/hyprland-protocols"
+      }
+    },
     "hyprlang": {
       "inputs": {
         "hyprutils": [
@@ -67,6 +89,7 @@
     },
     "root": {
       "inputs": {
+        "hyprland-protocols": "hyprland-protocols",
         "hyprlang": "hyprlang",
         "hyprutils": "hyprutils",
         "nixpkgs": "nixpkgs",
