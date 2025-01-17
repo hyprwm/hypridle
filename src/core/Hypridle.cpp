@@ -47,11 +47,11 @@ inline const ext_idle_notification_v1_listener idleListener = {
 };
 
 void handleLocked(void* data, hyprland_lock_notification_v1* hyprland_lock_notification_v1) {
-    Debug::log(LOG, "Locked");
+    g_pHypridle->onLocked();
 }
 
 void handleUnlocked(void* data, hyprland_lock_notification_v1* hyprland_lock_notification_v1) {
-    Debug::log(LOG, "Unlocked");
+    g_pHypridle->onUnlocked();
 }
 
 inline const hyprland_lock_notification_v1_listener lockListener = {
@@ -319,16 +319,6 @@ void CHypridle::onResumed(SIdleListener* pListener) {
     spawn(pListener->onRestore);
 }
 
-void CHypridle::onLocked() {
-    Debug::log(LOG, "Locked");
-    m_isLocked = true;
-
-    if (const auto* const PLOCKCMD = (Hyprlang::STRING const*)g_pConfigManager->getValuePtr("general:on_lock_cmd"); !PLOCKCMD->empty()) {
-        Debug::log(LOG, "Running {}", *PLOCKCMD);
-        spawn(*PLOCKCMD);
-    }
-}
-
 void CHypridle::onInhibit(bool lock) {
     m_iInhibitLocks += lock ? 1 : -1;
 
@@ -353,6 +343,26 @@ void CHypridle::onInhibit(bool lock) {
     }
 
     Debug::log(LOG, "Inhibit locks: {}", m_iInhibitLocks);
+}
+
+void CHypridle::onLocked() {
+    Debug::log(LOG, "Locked");
+    m_isLocked = true;
+
+    if (const auto* const PLOCKCMD = (Hyprlang::STRING const*)g_pConfigManager->getValuePtr("general:on_lock_cmd"); !PLOCKCMD->empty()) {
+        Debug::log(LOG, "Running {}", *PLOCKCMD);
+        spawn(*PLOCKCMD);
+    }
+}
+
+void CHypridle::onUnlocked() {
+    Debug::log(LOG, "Unlocked");
+    m_isLocked = false;
+
+    if (const auto* const PUNLOCKCMD = (Hyprlang::STRING const*)g_pConfigManager->getValuePtr("general:on_unlock_cmd"); !PUNLOCKCMD->empty()) {
+        Debug::log(LOG, "Running {}", *PUNLOCKCMD);
+        spawn(*PUNLOCKCMD);
+    }
 }
 
 CHypridle::SDbusInhibitCookie CHypridle::getDbusInhibitCookie(uint32_t cookie) {
