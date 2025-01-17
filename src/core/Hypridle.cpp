@@ -103,7 +103,39 @@ void CHypridle::run() {
         exit(1);
     }
 
+    static auto* const PINHIBIT  = (Hyprlang::INT* const*)g_pConfigManager->getValuePtr("general:inhibit_sleep");
+    static auto* const PSLEEPCMD = (Hyprlang::STRING const*)g_pConfigManager->getValuePtr("general:before_sleep_cmd");
+    static auto* const PLOCKCMD  = (Hyprlang::STRING const*)g_pConfigManager->getValuePtr("general:lock_cmd");
+
+    switch (**PINHIBIT) {
+        case 0: // disabled
+            m_inhibitSleepBehavior = SLEEP_INHIBIT_NONE;
+            break;
+        case 1: // enabled
+            m_inhibitSleepBehavior = SLEEP_INHIBIT_NORMAL;
+            break;
+        case 2: { // auto (enable, but wait until locked if before_sleep_cmd contains hyprlock, or loginctl lock-session and lock_cmd contains hyprlock.)
+            if (std::string{*PSLEEPCMD}.contains("hyprlock"))
+                m_inhibitSleepBehavior = SLEEP_INHIBIT_WAIT_FOR_LOCKED;
+            else if (std::string{*PLOCKCMD}.contains("hyprlock") && std::string{*PSLEEPCMD}.contains("lock-session"))
+                m_inhibitSleepBehavior = SLEEP_INHIBIT_WAIT_FOR_LOCKED;
+            else
+                m_inhibitSleepBehavior = SLEEP_INHIBIT_NORMAL;
+        } break;
+        case 3: // wait until locked
+            m_inhibitSleepBehavior = SLEEP_INHIBIT_WAIT_FOR_LOCKED;
+            break;
+        default: Debug::log(ERR, "Invalid inhibit_sleep value: {}", **PINHIBIT); break;
+    }
+
+    switch (m_inhibitSleepBehavior) {
+        case SLEEP_INHIBIT_NONE: Debug::log(LOG, "Sleep inhibition disabled"); break;
+        case SLEEP_INHIBIT_NORMAL: Debug::log(LOG, "Sleep inhibition enabled"); break;
+        case SLEEP_INHIBIT_WAIT_FOR_LOCKED: Debug::log(LOG, "Sleep inhibition enabled - inhibiting until the wayland session gets locked"); break;
+    }
+
     setupDBUS();
+    handleInhibitSleep(false);
     enterEventLoop();
 }
 
@@ -268,6 +300,7 @@ static void spawn(const std::string& args) {
         close(socket[0]);
         write(socket[1], &grandchild, sizeof(grandchild));
         close(socket[1]);
+        waitpid(grandchild, NULL, 0);
         // exit child
         _exit(0);
     }
@@ -346,23 +379,22 @@ void CHypridle::onInhibit(bool lock) {
 }
 
 void CHypridle::onLocked() {
-    Debug::log(LOG, "Locked");
+    Debug::log(LOG, "Wayland session got locked");
     m_isLocked = true;
 
-    if (const auto* const PLOCKCMD = (Hyprlang::STRING const*)g_pConfigManager->getValuePtr("general:on_lock_cmd"); !PLOCKCMD->empty()) {
-        Debug::log(LOG, "Running {}", *PLOCKCMD);
+    if (m_inhibitSleepBehavior == SLEEP_INHIBIT_WAIT_FOR_LOCKED)
+        uninhibitSleep();
+
+    if (const auto* const PLOCKCMD = (Hyprlang::STRING const*)g_pConfigManager->getValuePtr("general:on_lock_cmd"); PLOCKCMD && strlen(*PLOCKCMD) > 0)
         spawn(*PLOCKCMD);
-    }
 }
 
 void CHypridle::onUnlocked() {
-    Debug::log(LOG, "Unlocked");
+    Debug::log(LOG, "Wayland session got unlocked");
     m_isLocked = false;
 
-    if (const auto* const PUNLOCKCMD = (Hyprlang::STRING const*)g_pConfigManager->getValuePtr("general:on_unlock_cmd"); !PUNLOCKCMD->empty()) {
-        Debug::log(LOG, "Running {}", *PUNLOCKCMD);
+    if (const auto* const PUNLOCKCMD = (Hyprlang::STRING const*)g_pConfigManager->getValuePtr("general:on_unlock_cmd"); PUNLOCKCMD && strlen(*PUNLOCKCMD) > 0)
         spawn(*PUNLOCKCMD);
-    }
 }
 
 CHypridle::SDbusInhibitCookie CHypridle::getDbusInhibitCookie(uint32_t cookie) {
@@ -441,11 +473,14 @@ static void handleDbusSleep(sdbus::Message msg) {
 
     std::string cmd = toSleep ? *PSLEEPCMD : *PAFTERSLEEPCMD;
 
-    if (cmd.empty())
-        return;
+    if (!toSleep)
+        g_pHypridle->handleInhibitSleep(toSleep);
 
-    Debug::log(LOG, "Running: {}", cmd);
-    spawn(cmd);
+    if (!cmd.empty())
+        spawn(cmd);
+
+    if (toSleep)
+        g_pHypridle->handleInhibitSleep(toSleep);
 }
 
 void handleDbusBlockInhibits(const std::string& inhibits) {
@@ -540,6 +575,7 @@ void CHypridle::setupDBUS() {
 
         m_sDBUSState.connection->addMatch("type='signal',path='" + path + "',interface='org.freedesktop.login1.Session'", ::handleDbusLogin);
         m_sDBUSState.connection->addMatch("type='signal',path='/org/freedesktop/login1',interface='org.freedesktop.login1.Manager'", ::handleDbusSleep);
+        m_sDBUSState.login = sdbus::createProxy(*m_sDBUSState.connection, sdbus::ServiceName{"org.freedesktop.login1"}, sdbus::ObjectPath{"/org/freedesktop/login1"});
     } catch (std::exception& e) { Debug::log(WARN, "Couldn't connect to logind service ({})", e.what()); }
 
     Debug::log(LOG, "Using dbus path {}", path.c_str());
@@ -585,4 +621,51 @@ void CHypridle::setupDBUS() {
     }
 
     systemConnection.reset();
+}
+
+void CHypridle::handleInhibitSleep(bool toSleep) {
+    if (m_inhibitSleepBehavior == SLEEP_INHIBIT_NONE)
+        return;
+
+    if (!toSleep)
+        inhibitSleep();
+    else if (m_inhibitSleepBehavior != SLEEP_INHIBIT_WAIT_FOR_LOCKED)
+        uninhibitSleep();
+}
+
+void CHypridle::inhibitSleep() {
+    auto method = m_sDBUSState.login->createMethodCall(sdbus::InterfaceName{"org.freedesktop.login1.Manager"}, sdbus::MethodName{"Inhibit"});
+    method << "sleep";
+    method << "hypridle";
+    method << "Hypridle wants to delay sleep until it's before_sleep handling is done.";
+    method << "delay";
+
+    try {
+        auto reply = m_sDBUSState.login->callMethod(method);
+
+        if (!reply || !reply.isValid()) {
+            Debug::log(ERR, "Failed to inhibit sleep");
+            return;
+        }
+
+        if (reply.isEmpty()) {
+            Debug::log(ERR, "Failed to inhibit sleep, empty reply");
+            return;
+        }
+
+        reply >> m_sDBUSState.sleepInhibitFd;
+        Debug::log(TRACE, "Inhibited sleep with fd {}", m_sDBUSState.sleepInhibitFd.get());
+    } catch (const std::exception& e) { Debug::log(ERR, "Failed to inhibit sleep ({})", e.what()); }
+
+    Debug::log(LOG, "Inhibited sleep!");
+}
+
+void CHypridle::uninhibitSleep() {
+    if (!m_sDBUSState.sleepInhibitFd.isValid()) {
+        Debug::log(ERR, "No sleep inhibitor fd to release");
+        return;
+    }
+
+    Debug::log(LOG, "Releasing the sleep inhibitor!");
+    close(m_sDBUSState.sleepInhibitFd.release());
 }

@@ -29,6 +29,7 @@ void CConfigManager::init() {
     m_config.addConfigValue("general:after_sleep_cmd", Hyprlang::STRING{""});
     m_config.addConfigValue("general:ignore_dbus_inhibit", Hyprlang::INT{0});
     m_config.addConfigValue("general:ignore_systemd_inhibit", Hyprlang::INT{0});
+    m_config.addConfigValue("general:inhibit_sleep", Hyprlang::INT{2});
 
     m_config.commence();
 

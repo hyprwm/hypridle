@@ -32,15 +32,19 @@ class CHypridle {
     void               onIdled(SIdleListener*);
     void               onResumed(SIdleListener*);
 
+    void               onInhibit(bool lock);
+
     void               onLocked();
     void               onUnlocked();
-
-    void               onInhibit(bool lock);
 
     SDbusInhibitCookie getDbusInhibitCookie(uint32_t cookie);
     void               registerDbusInhibitCookie(SDbusInhibitCookie& cookie);
     bool               unregisterDbusInhibitCookie(const SDbusInhibitCookie& cookie);
     bool               unregisterDbusInhibitCookies(const std::string& ownerID);
+
+    void               handleInhibitSleep(bool toSleep);
+    void               inhibitSleep();
+    void               uninhibitSleep();
 
   private:
     void    setupDBUS();
@@ -50,6 +54,12 @@ class CHypridle {
     bool    isIdled         = false;
     bool    m_isLocked      = false;
     int64_t m_iInhibitLocks = 0;
+
+    enum {
+        SLEEP_INHIBIT_NONE,
+        SLEEP_INHIBIT_NORMAL,
+        SLEEP_INHIBIT_WAIT_FOR_LOCKED,
+    } m_inhibitSleepBehavior;
 
     struct {
         wl_display*                    display          = nullptr;
@@ -68,8 +78,10 @@ class CHypridle {
     struct {
         std::unique_ptr<sdbus::IConnection>          connection;
         std::unique_ptr<sdbus::IConnection>          screenSaverServiceConnection;
+        std::unique_ptr<sdbus::IProxy>               login;
         std::vector<std::unique_ptr<sdbus::IObject>> screenSaverObjects;
         std::vector<SDbusInhibitCookie>              inhibitCookies;
+        sdbus::UnixFd                                sleepInhibitFd;
     } m_sDBUSState;
 
     struct {
