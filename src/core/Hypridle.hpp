@@ -42,7 +42,7 @@ class CHypridle {
     bool               unregisterDbusInhibitCookie(const SDbusInhibitCookie& cookie);
     bool               unregisterDbusInhibitCookies(const std::string& ownerID);
 
-    void               handleInhibitSleep(bool toSleep);
+    void               handleInhibitOnDbusSleep(bool toSleep);
     void               inhibitSleep();
     void               uninhibitSleep();
 
@@ -58,7 +58,7 @@ class CHypridle {
     enum {
         SLEEP_INHIBIT_NONE,
         SLEEP_INHIBIT_NORMAL,
-        SLEEP_INHIBIT_WAIT_FOR_LOCKED,
+        SLEEP_INHIBIT_LOCK_NOTIFY,
     } m_inhibitSleepBehavior;
 
     struct {

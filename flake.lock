@@ -10,16 +10,17 @@
         ]
       },
       "locked": {
-        "lastModified": 1737053288,
-        "narHash": "sha256-RV6n5M5kewrOfpDMdVzj5oVRhVHiZpjDcaOHGYMcnRo=",
-        "rev": "5b17e27fde2155eeb96ff487b7721e5df0a72296",
-        "revCount": 30,
-        "type": "git",
-        "url": "file:///home/max/desk/hyprland-protocols"
+        "lastModified": 1737127640,
+        "narHash": "sha256-mIQ3/axCZ4g8ySwWRbW4fJcyC9v55uAii3cqlJRtW8g=",
+        "owner": "hyprwm",
+        "repo": "hyprland-protocols",
+        "rev": "455c055883d9639d4fcbfcedb4c6d12ce313791e",
+        "type": "github"
       },
       "original": {
-        "type": "git",
-        "url": "file:///home/max/desk/hyprland-protocols"
+        "owner": "hyprwm",
+        "repo": "hyprland-protocols",
+        "type": "github"
       }
     },
     "hyprlang": {

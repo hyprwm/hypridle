@@ -103,6 +103,11 @@ void CHypridle::run() {
         exit(1);
     }
 
+    if (!m_sWaylandState.lockNotifier)
+        Debug::log(WARN,
+                   "Compositor is missing hyprland-lock-notify-v1!\n"
+                   "general:inhibit_sleep=3, general:on_lock_cmd and general:on_unlock_cmd will not work.");
+
     static auto* const PINHIBIT  = (Hyprlang::INT* const*)g_pConfigManager->getValuePtr("general:inhibit_sleep");
     static auto* const PSLEEPCMD = (Hyprlang::STRING const*)g_pConfigManager->getValuePtr("general:before_sleep_cmd");
     static auto* const PLOCKCMD  = (Hyprlang::STRING const*)g_pConfigManager->getValuePtr("general:lock_cmd");
@@ -115,15 +120,16 @@ void CHypridle::run() {
             m_inhibitSleepBehavior = SLEEP_INHIBIT_NORMAL;
             break;
         case 2: { // auto (enable, but wait until locked if before_sleep_cmd contains hyprlock, or loginctl lock-session and lock_cmd contains hyprlock.)
-            if (std::string{*PSLEEPCMD}.contains("hyprlock"))
-                m_inhibitSleepBehavior = SLEEP_INHIBIT_WAIT_FOR_LOCKED;
-            else if (std::string{*PLOCKCMD}.contains("hyprlock") && std::string{*PSLEEPCMD}.contains("lock-session"))
-                m_inhibitSleepBehavior = SLEEP_INHIBIT_WAIT_FOR_LOCKED;
+            if (m_sWaylandState.lockNotifier && std::string{*PSLEEPCMD}.contains("hyprlock"))
+                m_inhibitSleepBehavior = SLEEP_INHIBIT_LOCK_NOTIFY;
+            else if (m_sWaylandState.lockNotifier && std::string{*PLOCKCMD}.contains("hyprlock") && std::string{*PSLEEPCMD}.contains("lock-session"))
+                m_inhibitSleepBehavior = SLEEP_INHIBIT_LOCK_NOTIFY;
             else
                 m_inhibitSleepBehavior = SLEEP_INHIBIT_NORMAL;
         } break;
         case 3: // wait until locked
-            m_inhibitSleepBehavior = SLEEP_INHIBIT_WAIT_FOR_LOCKED;
+            if (m_sWaylandState.lockNotifier)
+                m_inhibitSleepBehavior = SLEEP_INHIBIT_LOCK_NOTIFY;
             break;
         default: Debug::log(ERR, "Invalid inhibit_sleep value: {}", **PINHIBIT); break;
     }
@@ -131,11 +137,12 @@ void CHypridle::run() {
     switch (m_inhibitSleepBehavior) {
         case SLEEP_INHIBIT_NONE: Debug::log(LOG, "Sleep inhibition disabled"); break;
         case SLEEP_INHIBIT_NORMAL: Debug::log(LOG, "Sleep inhibition enabled"); break;
-        case SLEEP_INHIBIT_WAIT_FOR_LOCKED: Debug::log(LOG, "Sleep inhibition enabled - inhibiting until the wayland session gets locked"); break;
+        case SLEEP_INHIBIT_LOCK_NOTIFY: Debug::log(LOG, "Sleep inhibition enabled - inhibiting until the wayland session gets locked"); break;
     }
 
     setupDBUS();
-    handleInhibitSleep(false);
+    if (m_inhibitSleepBehavior != SLEEP_INHIBIT_NONE)
+        inhibitSleep();
     enterEventLoop();
 }
 
@@ -382,16 +389,19 @@ void CHypridle::onLocked() {
     Debug::log(LOG, "Wayland session got locked");
     m_isLocked = true;
 
-    if (m_inhibitSleepBehavior == SLEEP_INHIBIT_WAIT_FOR_LOCKED)
-        uninhibitSleep();
-
     if (const auto* const PLOCKCMD = (Hyprlang::STRING const*)g_pConfigManager->getValuePtr("general:on_lock_cmd"); PLOCKCMD && strlen(*PLOCKCMD) > 0)
         spawn(*PLOCKCMD);
+
+    if (m_inhibitSleepBehavior == SLEEP_INHIBIT_LOCK_NOTIFY)
+        uninhibitSleep();
 }
 
 void CHypridle::onUnlocked() {
     Debug::log(LOG, "Wayland session got unlocked");
     m_isLocked = false;
+
+    if (m_inhibitSleepBehavior == SLEEP_INHIBIT_LOCK_NOTIFY)
+        inhibitSleep();
 
     if (const auto* const PUNLOCKCMD = (Hyprlang::STRING const*)g_pConfigManager->getValuePtr("general:on_unlock_cmd"); PUNLOCKCMD && strlen(*PUNLOCKCMD) > 0)
         spawn(*PUNLOCKCMD);
@@ -474,13 +484,13 @@ static void handleDbusSleep(sdbus::Message msg) {
     std::string cmd = toSleep ? *PSLEEPCMD : *PAFTERSLEEPCMD;
 
     if (!toSleep)
-        g_pHypridle->handleInhibitSleep(toSleep);
+        g_pHypridle->handleInhibitOnDbusSleep(toSleep);
 
     if (!cmd.empty())
         spawn(cmd);
 
     if (toSleep)
-        g_pHypridle->handleInhibitSleep(toSleep);
+        g_pHypridle->handleInhibitOnDbusSleep(toSleep);
 }
 
 void handleDbusBlockInhibits(const std::string& inhibits) {
@@ -623,13 +633,15 @@ void CHypridle::setupDBUS() {
     systemConnection.reset();
 }
 
-void CHypridle::handleInhibitSleep(bool toSleep) {
-    if (m_inhibitSleepBehavior == SLEEP_INHIBIT_NONE)
+void CHypridle::handleInhibitOnDbusSleep(bool toSleep) {
+    if (m_inhibitSleepBehavior == SLEEP_INHIBIT_NONE ||     //
+        m_inhibitSleepBehavior == SLEEP_INHIBIT_LOCK_NOTIFY // Sleep inhibition handled via onLocked/onUnlocked
+    )
         return;
 
     if (!toSleep)
         inhibitSleep();
-    else if (m_inhibitSleepBehavior != SLEEP_INHIBIT_WAIT_FOR_LOCKED)
+    else
         uninhibitSleep();
 }
 

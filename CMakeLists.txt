@@ -85,7 +85,7 @@ function(protocol protoPath protoName external)
   endif()
 endfunction()
 
-pkg_check_modules(hyprland_protocols_dep REQUIRED IMPORTED_TARGET hyprland-protocols>=0.4.0)
+pkg_check_modules(hyprland_protocols_dep REQUIRED IMPORTED_TARGET hyprland-protocols>=0.6.0)
 pkg_get_variable(HYPRLAND_PROTOCOLS hyprland-protocols pkgdatadir)
 message(STATUS "hyprland-protocols dependency set to ${HYPRLAND_PROTOCOLS}")
 
