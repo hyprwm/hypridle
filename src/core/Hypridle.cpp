@@ -1,8 +1,6 @@
 #include "Hypridle.hpp"
 #include "../helpers/Log.hpp"
 #include "../config/ConfigManager.hpp"
-#include "ext-idle-notify-v1-protocol.h"
-#include "hyprland-lock-notify-v1-protocol.h"
 #include "signal.h"
 #include <sys/wait.h>
 #include <sys/poll.h>
@@ -20,49 +18,32 @@ CHypridle::CHypridle() {
     }
 }
 
-void handleGlobal(void* data, struct wl_registry* registry, uint32_t name, const char* interface, uint32_t version) {
-    g_pHypridle->onGlobal(data, registry, name, interface, version);
-}
-
-void handleGlobalRemove(void* data, struct wl_registry* registry, uint32_t name) {
-    g_pHypridle->onGlobalRemoved(data, registry, name);
-}
-
-inline const wl_registry_listener registryListener = {
-    .global        = handleGlobal,
-    .global_remove = handleGlobalRemove,
-};
-
-void handleIdled(void* data, ext_idle_notification_v1* ext_idle_notification_v1) {
-    g_pHypridle->onIdled((CHypridle::SIdleListener*)data);
-}
-
-void handleResumed(void* data, ext_idle_notification_v1* ext_idle_notification_v1) {
-    g_pHypridle->onResumed((CHypridle::SIdleListener*)data);
-}
-
-inline const ext_idle_notification_v1_listener idleListener = {
-    .idled   = handleIdled,
-    .resumed = handleResumed,
-};
-
-void handleLocked(void* data, hyprland_lock_notification_v1* hyprland_lock_notification_v1) {
-    g_pHypridle->onLocked();
-}
-
-void handleUnlocked(void* data, hyprland_lock_notification_v1* hyprland_lock_notification_v1) {
-    g_pHypridle->onUnlocked();
-}
-
-inline const hyprland_lock_notification_v1_listener lockListener = {
-    .locked   = handleLocked,
-    .unlocked = handleUnlocked,
-};
-
 void CHypridle::run() {
-    m_sWaylandState.registry = wl_display_get_registry(m_sWaylandState.display);
+    m_sWaylandState.registry = makeShared<CCWlRegistry>((wl_proxy*)wl_display_get_registry(m_sWaylandState.display));
+    m_sWaylandState.registry->setGlobal([this](CCWlRegistry* r, uint32_t name, const char* interface, uint32_t version) {
+        const std::string IFACE = interface;
+        Debug::log(LOG, "  | got iface: {} v{}", IFACE, version);
 
-    wl_registry_add_listener(m_sWaylandState.registry, &registryListener, nullptr);
+        if (IFACE == ext_idle_notifier_v1_interface.name) {
+            m_sWaylandIdleState.notifier =
+                makeShared<CCExtIdleNotifierV1>((wl_proxy*)wl_registry_bind((wl_registry*)r->resource(), name, &ext_idle_notifier_v1_interface, version));
+            Debug::log(LOG, "   > Bound to {} v{}", IFACE, version);
+        } else if (IFACE == hyprland_lock_notifier_v1_interface.name) {
+            m_sWaylandState.lockNotifier =
+                makeShared<CCHyprlandLockNotifierV1>((wl_proxy*)wl_registry_bind((wl_registry*)r->resource(), name, &hyprland_lock_notifier_v1_interface, version));
+            Debug::log(LOG, "   > Bound to {} v{}", IFACE, version);
+        } else if (IFACE == wl_seat_interface.name) {
+            if (m_sWaylandState.seat) {
+                Debug::log(WARN, "Hypridle does not support multi-seat configurations. Only binding to the first seat.");
+                return;
+            }
+
+            m_sWaylandState.seat = makeShared<CCWlSeat>((wl_proxy*)wl_registry_bind((wl_registry*)r->resource(), name, &wl_seat_interface, version));
+            Debug::log(LOG, "   > Bound to {} v{}", IFACE, version);
+        }
+    });
+
+    m_sWaylandState.registry->setGlobalRemove([](CCWlRegistry* r, uint32_t name) { Debug::log(LOG, "  | removed iface {}", name); });
 
     wl_display_roundtrip(m_sWaylandState.display);
 
@@ -77,21 +58,24 @@ void CHypridle::run() {
     Debug::log(LOG, "found {} rules", RULES.size());
 
     for (size_t i = 0; i < RULES.size(); ++i) {
-        auto&       l  = m_sWaylandIdleState.listeners[i];
-        const auto& r  = RULES[i];
-        l.notification = ext_idle_notifier_v1_get_idle_notification(m_sWaylandIdleState.notifier, r.timeout * 1000 /* ms */, m_sWaylandState.seat);
-        l.onRestore    = r.onResume;
-        l.onTimeout    = r.onTimeout;
+        auto&       l = m_sWaylandIdleState.listeners[i];
+        const auto& r = RULES[i];
+        l.onRestore   = r.onResume;
+        l.onTimeout   = r.onTimeout;
 
-        ext_idle_notification_v1_add_listener(l.notification, &idleListener, &l);
+        l.notification = makeShared<CCExtIdleNotificationV1>(m_sWaylandIdleState.notifier->sendGetIdleNotification(r.timeout * 1000 /* ms */, m_sWaylandState.seat->resource()));
+        l.notification->setData(&m_sWaylandIdleState.listeners[i]);
+
+        l.notification->setIdled([this](CCExtIdleNotificationV1* n) { onIdled((CHypridle::SIdleListener*)n->data()); });
+        l.notification->setResumed([this](CCExtIdleNotificationV1* n) { onResumed((CHypridle::SIdleListener*)n->data()); });
     }
 
     wl_display_roundtrip(m_sWaylandState.display);
 
     if (m_sWaylandState.lockNotifier) {
-        m_sWaylandState.lockNotification = hyprland_lock_notifier_v1_get_lock_notification(m_sWaylandState.lockNotifier);
-
-        hyprland_lock_notification_v1_add_listener(m_sWaylandState.lockNotification, &lockListener, nullptr);
+        m_sWaylandState.lockNotification = makeShared<CCHyprlandLockNotificationV1>(m_sWaylandState.lockNotifier->sendGetLockNotification());
+        m_sWaylandState.lockNotification->setLocked([this](CCHyprlandLockNotificationV1* n) { onLocked(); });
+        m_sWaylandState.lockNotification->setUnlocked([this](CCHyprlandLockNotificationV1* n) { onUnlocked(); });
     }
 
     Debug::log(LOG, "wayland done, registering dbus");
@@ -247,31 +231,6 @@ void CHypridle::enterEventLoop() {
     Debug::log(ERR, "[core] Terminated");
 }
 
-void CHypridle::onGlobal(void* data, struct wl_registry* registry, uint32_t name, const char* interface, uint32_t version) {
-    const std::string IFACE = interface;
-    Debug::log(LOG, "  | got iface: {} v{}", IFACE, version);
-
-    if (IFACE == ext_idle_notifier_v1_interface.name) {
-        m_sWaylandIdleState.notifier = (ext_idle_notifier_v1*)wl_registry_bind(registry, name, &ext_idle_notifier_v1_interface, version);
-        Debug::log(LOG, "   > Bound to {} v{}", IFACE, version);
-    } else if (IFACE == hyprland_lock_notifier_v1_interface.name) {
-        m_sWaylandState.lockNotifier = (hyprland_lock_notifier_v1*)wl_registry_bind(registry, name, &hyprland_lock_notifier_v1_interface, version);
-        Debug::log(LOG, "   > Bound to {} v{}", IFACE, version);
-    } else if (IFACE == wl_seat_interface.name) {
-        if (m_sWaylandState.seat) {
-            Debug::log(WARN, "Hypridle does not support multi-seat configurations. Only binding to the first seat.");
-            return;
-        }
-
-        m_sWaylandState.seat = (wl_seat*)wl_registry_bind(registry, name, &wl_seat_interface, version);
-        Debug::log(LOG, "   > Bound to {} v{}", IFACE, version);
-    }
-}
-
-void CHypridle::onGlobalRemoved(void* data, struct wl_registry* registry, uint32_t name) {
-    ;
-}
-
 static void spawn(const std::string& args) {
     Debug::log(LOG, "Executing {}", args);
 
@@ -374,11 +333,14 @@ void CHypridle::onInhibit(bool lock) {
             auto&       l = m_sWaylandIdleState.listeners[i];
             const auto& r = RULES[i];
 
-            ext_idle_notification_v1_destroy(l.notification);
+            l.notification->sendDestroy();
 
-            l.notification = ext_idle_notifier_v1_get_idle_notification(m_sWaylandIdleState.notifier, r.timeout * 1000 /* ms */, m_sWaylandState.seat);
+            l.notification =
+                makeShared<CCExtIdleNotificationV1>(m_sWaylandIdleState.notifier->sendGetIdleNotification(r.timeout * 1000 /* ms */, m_sWaylandState.seat->resource()));
+            l.notification->setData(&m_sWaylandIdleState.listeners[i]);
 
-            ext_idle_notification_v1_add_listener(l.notification, &idleListener, &l);
+            l.notification->setIdled([this](CCExtIdleNotificationV1* n) { onIdled((CHypridle::SIdleListener*)n->data()); });
+            l.notification->setResumed([this](CCExtIdleNotificationV1* n) { onResumed((CHypridle::SIdleListener*)n->data()); });
         }
     }
 

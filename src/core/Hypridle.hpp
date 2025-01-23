@@ -2,21 +2,23 @@
 
 #include <memory>
 #include <vector>
-#include <wayland-client.h>
 #include <sdbus-c++/sdbus-c++.h>
 #include <condition_variable>
 
-#include "ext-idle-notify-v1-protocol.h"
-#include "hyprland-lock-notify-v1-protocol.h"
+#include "wayland.hpp"
+#include "ext-idle-notify-v1.hpp"
+#include "hyprland-lock-notify-v1.hpp"
+
+#include "../defines.hpp"
 
 class CHypridle {
   public:
     CHypridle();
 
     struct SIdleListener {
-        ext_idle_notification_v1* notification = nullptr;
-        std::string               onTimeout    = "";
-        std::string               onRestore    = "";
+        SP<CCExtIdleNotificationV1> notification = nullptr;
+        std::string                 onTimeout    = "";
+        std::string                 onRestore    = "";
     };
 
     struct SDbusInhibitCookie {
@@ -62,15 +64,15 @@ class CHypridle {
     } m_inhibitSleepBehavior;
 
     struct {
-        wl_display*                    display          = nullptr;
-        wl_registry*                   registry         = nullptr;
-        wl_seat*                       seat             = nullptr;
-        hyprland_lock_notifier_v1*     lockNotifier     = nullptr;
-        hyprland_lock_notification_v1* lockNotification = nullptr;
+        wl_display*                      display          = nullptr;
+        SP<CCWlRegistry>                 registry         = nullptr;
+        SP<CCWlSeat>                     seat             = nullptr;
+        SP<CCHyprlandLockNotifierV1>     lockNotifier     = nullptr;
+        SP<CCHyprlandLockNotificationV1> lockNotification = nullptr;
     } m_sWaylandState;
 
     struct {
-        ext_idle_notifier_v1*      notifier = nullptr;
+        SP<CCExtIdleNotifierV1>    notifier = nullptr;
 
         std::vector<SIdleListener> listeners;
     } m_sWaylandIdleState;
