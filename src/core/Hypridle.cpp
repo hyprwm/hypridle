@@ -92,11 +92,11 @@ void CHypridle::run() {
                    "Compositor is missing hyprland-lock-notify-v1!\n"
                    "general:inhibit_sleep=3, general:on_lock_cmd and general:on_unlock_cmd will not work.");
 
-    static auto* const PINHIBIT  = (Hyprlang::INT* const*)g_pConfigManager->getValuePtr("general:inhibit_sleep");
-    static auto* const PSLEEPCMD = (Hyprlang::STRING const*)g_pConfigManager->getValuePtr("general:before_sleep_cmd");
-    static auto* const PLOCKCMD  = (Hyprlang::STRING const*)g_pConfigManager->getValuePtr("general:lock_cmd");
+    const auto INHIBIT  = g_pConfigManager->getValue<Hyprlang::INT>("general:inhibit_sleep");
+    const auto SLEEPCMD = g_pConfigManager->getValue<Hyprlang::STRING>("general:before_sleep_cmd");
+    const auto LOCKCMD  = g_pConfigManager->getValue<Hyprlang::STRING>("general:lock_cmd");
 
-    switch (**PINHIBIT) {
+    switch (*INHIBIT) {
         case 0: // disabled
             m_inhibitSleepBehavior = SLEEP_INHIBIT_NONE;
             break;
@@ -104,9 +104,9 @@ void CHypridle::run() {
             m_inhibitSleepBehavior = SLEEP_INHIBIT_NORMAL;
             break;
         case 2: { // auto (enable, but wait until locked if before_sleep_cmd contains hyprlock, or loginctl lock-session and lock_cmd contains hyprlock.)
-            if (m_sWaylandState.lockNotifier && std::string{*PSLEEPCMD}.contains("hyprlock"))
+            if (m_sWaylandState.lockNotifier && std::string{*SLEEPCMD}.contains("hyprlock"))
                 m_inhibitSleepBehavior = SLEEP_INHIBIT_LOCK_NOTIFY;
-            else if (m_sWaylandState.lockNotifier && std::string{*PLOCKCMD}.contains("hyprlock") && std::string{*PSLEEPCMD}.contains("lock-session"))
+            else if (m_sWaylandState.lockNotifier && std::string{*LOCKCMD}.contains("hyprlock") && std::string{*SLEEPCMD}.contains("lock-session"))
                 m_inhibitSleepBehavior = SLEEP_INHIBIT_LOCK_NOTIFY;
             else
                 m_inhibitSleepBehavior = SLEEP_INHIBIT_NORMAL;
@@ -115,7 +115,7 @@ void CHypridle::run() {
             if (m_sWaylandState.lockNotifier)
                 m_inhibitSleepBehavior = SLEEP_INHIBIT_LOCK_NOTIFY;
             break;
-        default: Debug::log(ERR, "Invalid inhibit_sleep value: {}", **PINHIBIT); break;
+        default: Debug::log(ERR, "Invalid inhibit_sleep value: {}", *INHIBIT); break;
     }
 
     switch (m_inhibitSleepBehavior) {
@@ -266,7 +266,6 @@ static void spawn(const std::string& args) {
         close(socket[0]);
         write(socket[1], &grandchild, sizeof(grandchild));
         close(socket[1]);
-        waitpid(grandchild, NULL, 0);
         // exit child
         _exit(0);
     }
@@ -351,8 +350,9 @@ void CHypridle::onLocked() {
     Debug::log(LOG, "Wayland session got locked");
     m_isLocked = true;
 
-    if (const auto* const PLOCKCMD = (Hyprlang::STRING const*)g_pConfigManager->getValuePtr("general:on_lock_cmd"); PLOCKCMD && strlen(*PLOCKCMD) > 0)
-        spawn(*PLOCKCMD);
+    const auto LOCKCMD = g_pConfigManager->getValue<Hyprlang::STRING>("general:on_lock_cmd");
+    if (*LOCKCMD)
+        spawn(*LOCKCMD);
 
     if (m_inhibitSleepBehavior == SLEEP_INHIBIT_LOCK_NOTIFY)
         uninhibitSleep();
@@ -365,8 +365,9 @@ void CHypridle::onUnlocked() {
     if (m_inhibitSleepBehavior == SLEEP_INHIBIT_LOCK_NOTIFY)
         inhibitSleep();
 
-    if (const auto* const PUNLOCKCMD = (Hyprlang::STRING const*)g_pConfigManager->getValuePtr("general:on_unlock_cmd"); PUNLOCKCMD && strlen(*PUNLOCKCMD) > 0)
-        spawn(*PUNLOCKCMD);
+    const auto UNLOCKCMD = g_pConfigManager->getValue<Hyprlang::STRING>("general:on_unlock_cmd");
+    if (*UNLOCKCMD)
+        spawn(*UNLOCKCMD);
 }
 
 CHypridle::SDbusInhibitCookie CHypridle::getDbusInhibitCookie(uint32_t cookie) {
@@ -406,8 +407,8 @@ bool CHypridle::unregisterDbusInhibitCookies(const std::string& ownerID) {
 
 static void handleDbusLogin(sdbus::Message msg) {
     // lock & unlock
-    static auto* const PLOCKCMD   = (Hyprlang::STRING const*)g_pConfigManager->getValuePtr("general:lock_cmd");
-    static auto* const PUNLOCKCMD = (Hyprlang::STRING const*)g_pConfigManager->getValuePtr("general:unlock_cmd");
+    const auto LOCKCMD   = g_pConfigManager->getValue<Hyprlang::STRING>("general:lock_cmd");
+    const auto UNLOCKCMD = g_pConfigManager->getValue<Hyprlang::STRING>("general:unlock_cmd");
 
     Debug::log(LOG, "Got dbus .Session");
 
@@ -415,16 +416,16 @@ static void handleDbusLogin(sdbus::Message msg) {
     if (MEMBER == "Lock") {
         Debug::log(LOG, "Got Lock from dbus");
 
-        if (!std::string{*PLOCKCMD}.empty()) {
-            Debug::log(LOG, "Locking with {}", *PLOCKCMD);
-            spawn(*PLOCKCMD);
+        if (!std::string{*LOCKCMD}.empty()) {
+            Debug::log(LOG, "Locking with {}", *LOCKCMD);
+            spawn(*LOCKCMD);
         }
     } else if (MEMBER == "Unlock") {
         Debug::log(LOG, "Got Unlock from dbus");
 
-        if (!std::string{*PUNLOCKCMD}.empty()) {
-            Debug::log(LOG, "Locking with {}", *PUNLOCKCMD);
-            spawn(*PUNLOCKCMD);
+        if (!std::string{*UNLOCKCMD}.empty()) {
+            Debug::log(LOG, "Locking with {}", *UNLOCKCMD);
+            spawn(*UNLOCKCMD);
         }
     }
 }
@@ -438,12 +439,12 @@ static void handleDbusSleep(sdbus::Message msg) {
     bool toSleep = true;
     msg >> toSleep;
 
-    static auto* const PSLEEPCMD      = (Hyprlang::STRING const*)g_pConfigManager->getValuePtr("general:before_sleep_cmd");
-    static auto* const PAFTERSLEEPCMD = (Hyprlang::STRING const*)g_pConfigManager->getValuePtr("general:after_sleep_cmd");
+    const auto SLEEPCMD      = g_pConfigManager->getValue<Hyprlang::STRING>("general:before_sleep_cmd");
+    const auto AFTERSLEEPCMD = g_pConfigManager->getValue<Hyprlang::STRING>("general:after_sleep_cmd");
 
     Debug::log(LOG, "Got PrepareForSleep from dbus with sleep {}", toSleep);
 
-    std::string cmd = toSleep ? *PSLEEPCMD : *PAFTERSLEEPCMD;
+    std::string cmd = toSleep ? *SLEEPCMD : *AFTERSLEEPCMD;
 
     if (!toSleep)
         g_pHypridle->handleInhibitOnDbusSleep(toSleep);
@@ -535,8 +536,8 @@ static void handleDbusNameOwnerChanged(sdbus::Message msg) {
 }
 
 void CHypridle::setupDBUS() {
-    static auto const IGNORE_DBUS_INHIBIT    = **(Hyprlang::INT* const*)g_pConfigManager->getValuePtr("general:ignore_dbus_inhibit");
-    static auto const IGNORE_SYSTEMD_INHIBIT = **(Hyprlang::INT* const*)g_pConfigManager->getValuePtr("general:ignore_systemd_inhibit");
+    const auto        IGNOREDBUSINHIBIT    = g_pConfigManager->getValue<Hyprlang::INT>("general:ignore_dbus_inhibit");
+    const auto        IGNORESYSTEMDINHIBIT = g_pConfigManager->getValue<Hyprlang::INT>("general:ignore_systemd_inhibit");
 
     auto              systemConnection = sdbus::createSystemBusConnection();
     auto              proxy            = sdbus::createProxy(*systemConnection, sdbus::ServiceName{"org.freedesktop.login1"}, sdbus::ObjectPath{"/org/freedesktop/login1"});
@@ -552,7 +553,7 @@ void CHypridle::setupDBUS() {
 
     Debug::log(LOG, "Using dbus path {}", path.c_str());
 
-    if (!IGNORE_SYSTEMD_INHIBIT) {
+    if (!*IGNORESYSTEMDINHIBIT) {
         m_sDBUSState.connection->addMatch("type='signal',path='/org/freedesktop/login1',interface='org.freedesktop.DBus.Properties'", ::handleDbusBlockInhibitsPropertyChanged);
 
         try {
@@ -561,7 +562,7 @@ void CHypridle::setupDBUS() {
         } catch (std::exception& e) { Debug::log(WARN, "Couldn't retrieve current systemd inhibits ({})", e.what()); }
     }
 
-    if (!IGNORE_DBUS_INHIBIT) {
+    if (!*IGNOREDBUSINHIBIT) {
         // attempt to register as ScreenSaver
         std::string paths[] = {
             "/org/freedesktop/ScreenSaver",

@@ -42,7 +42,7 @@ pkg_check_modules(
   IMPORTED_TARGET
   wayland-client
   wayland-protocols
-  hyprlang>=0.4.0
+  hyprlang>=0.6.0
   hyprutils>=0.2.0
   sdbus-c++>=0.2.0)
 

@@ -18,9 +18,12 @@ class CConfigManager {
         std::string onResume  = "";
     };
 
-    std::string               getOnTimeoutCommand();
     std::vector<STimeoutRule> getRules();
-    void* const*              getValuePtr(const std::string& name);
+
+    template <typename T>
+    Hyprlang::CSimpleConfigValue<T> getValue(const std::string& name) {
+        return Hyprlang::CSimpleConfigValue<T>(&m_config, name.c_str());
+    }
 
   private:
     Hyprlang::CConfig         m_config;
