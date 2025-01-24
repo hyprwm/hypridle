@@ -36,6 +36,7 @@ will make those events ignored.
  - wayland-protocols
  - hyprlang >= 0.4.0
  - sdbus-c++
+ - hyprwayland-scanner
 
 ## Building & Installation
 

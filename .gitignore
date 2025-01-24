@@ -1,3 +1,7 @@
 .vscode/
 build/
 protocols/
+.clangd/
+.direnv/
+.cache/
+compile_commands.json
