@@ -92,9 +92,9 @@ void CHypridle::run() {
                    "Compositor is missing hyprland-lock-notify-v1!\n"
                    "general:inhibit_sleep=3, general:on_lock_cmd and general:on_unlock_cmd will not work.");
 
-    const auto INHIBIT  = g_pConfigManager->getValue<Hyprlang::INT>("general:inhibit_sleep");
-    const auto SLEEPCMD = g_pConfigManager->getValue<Hyprlang::STRING>("general:before_sleep_cmd");
-    const auto LOCKCMD  = g_pConfigManager->getValue<Hyprlang::STRING>("general:lock_cmd");
+    static const auto INHIBIT  = g_pConfigManager->getValue<Hyprlang::INT>("general:inhibit_sleep");
+    static const auto SLEEPCMD = g_pConfigManager->getValue<Hyprlang::STRING>("general:before_sleep_cmd");
+    static const auto LOCKCMD  = g_pConfigManager->getValue<Hyprlang::STRING>("general:lock_cmd");
 
     switch (*INHIBIT) {
         case 0: // disabled
@@ -350,7 +350,7 @@ void CHypridle::onLocked() {
     Debug::log(LOG, "Wayland session got locked");
     m_isLocked = true;
 
-    const auto LOCKCMD = g_pConfigManager->getValue<Hyprlang::STRING>("general:on_lock_cmd");
+    static const auto LOCKCMD = g_pConfigManager->getValue<Hyprlang::STRING>("general:on_lock_cmd");
     if (*LOCKCMD)
         spawn(*LOCKCMD);
 
@@ -365,7 +365,7 @@ void CHypridle::onUnlocked() {
     if (m_inhibitSleepBehavior == SLEEP_INHIBIT_LOCK_NOTIFY)
         inhibitSleep();
 
-    const auto UNLOCKCMD = g_pConfigManager->getValue<Hyprlang::STRING>("general:on_unlock_cmd");
+    static const auto UNLOCKCMD = g_pConfigManager->getValue<Hyprlang::STRING>("general:on_unlock_cmd");
     if (*UNLOCKCMD)
         spawn(*UNLOCKCMD);
 }
@@ -407,8 +407,8 @@ bool CHypridle::unregisterDbusInhibitCookies(const std::string& ownerID) {
 
 static void handleDbusLogin(sdbus::Message msg) {
     // lock & unlock
-    const auto LOCKCMD   = g_pConfigManager->getValue<Hyprlang::STRING>("general:lock_cmd");
-    const auto UNLOCKCMD = g_pConfigManager->getValue<Hyprlang::STRING>("general:unlock_cmd");
+    static const auto LOCKCMD   = g_pConfigManager->getValue<Hyprlang::STRING>("general:lock_cmd");
+    static const auto UNLOCKCMD = g_pConfigManager->getValue<Hyprlang::STRING>("general:unlock_cmd");
 
     Debug::log(LOG, "Got dbus .Session");
 
@@ -439,8 +439,8 @@ static void handleDbusSleep(sdbus::Message msg) {
     bool toSleep = true;
     msg >> toSleep;
 
-    const auto SLEEPCMD      = g_pConfigManager->getValue<Hyprlang::STRING>("general:before_sleep_cmd");
-    const auto AFTERSLEEPCMD = g_pConfigManager->getValue<Hyprlang::STRING>("general:after_sleep_cmd");
+    static const auto SLEEPCMD      = g_pConfigManager->getValue<Hyprlang::STRING>("general:before_sleep_cmd");
+    static const auto AFTERSLEEPCMD = g_pConfigManager->getValue<Hyprlang::STRING>("general:after_sleep_cmd");
 
     Debug::log(LOG, "Got PrepareForSleep from dbus with sleep {}", toSleep);
 
@@ -536,8 +536,8 @@ static void handleDbusNameOwnerChanged(sdbus::Message msg) {
 }
 
 void CHypridle::setupDBUS() {
-    const auto        IGNOREDBUSINHIBIT    = g_pConfigManager->getValue<Hyprlang::INT>("general:ignore_dbus_inhibit");
-    const auto        IGNORESYSTEMDINHIBIT = g_pConfigManager->getValue<Hyprlang::INT>("general:ignore_systemd_inhibit");
+    static const auto IGNOREDBUSINHIBIT    = g_pConfigManager->getValue<Hyprlang::INT>("general:ignore_dbus_inhibit");
+    static const auto IGNORESYSTEMDINHIBIT = g_pConfigManager->getValue<Hyprlang::INT>("general:ignore_systemd_inhibit");
 
     auto              systemConnection = sdbus::createSystemBusConnection();
     auto              proxy            = sdbus::createProxy(*systemConnection, sdbus::ServiceName{"org.freedesktop.login1"}, sdbus::ObjectPath{"/org/freedesktop/login1"});
