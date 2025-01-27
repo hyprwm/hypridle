@@ -35,13 +35,14 @@ message(STATUS "Checking deps...")
 
 find_package(Threads REQUIRED)
 find_package(PkgConfig REQUIRED)
+find_package(hyprwayland-scanner 0.4.4 REQUIRED)
 pkg_check_modules(
   deps
   REQUIRED
   IMPORTED_TARGET
   wayland-client
   wayland-protocols
-  hyprlang>=0.4.0
+  hyprlang>=0.6.0
   hyprutils>=0.2.0
   sdbus-c++>=0.2.0)
 
@@ -50,45 +51,47 @@ add_executable(hypridle ${SRCFILES})
 target_link_libraries(hypridle PRIVATE rt Threads::Threads PkgConfig::deps)
 
 # protocols
-find_program(WaylandScanner NAMES wayland-scanner)
-message(STATUS "Found WaylandScanner at ${WaylandScanner}")
-execute_process(
-  COMMAND pkg-config --variable=pkgdatadir wayland-protocols
-  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-  OUTPUT_VARIABLE WAYLAND_PROTOCOLS_DIR
-  OUTPUT_STRIP_TRAILING_WHITESPACE)
+pkg_get_variable(WAYLAND_PROTOCOLS_DIR wayland-protocols pkgdatadir)
 message(STATUS "Found wayland-protocols at ${WAYLAND_PROTOCOLS_DIR}")
+pkg_get_variable(WAYLAND_SCANNER_PKGDATA_DIR wayland-scanner pkgdatadir)
+message(STATUS "Found wayland-scanner pkgdatadir at ${WAYLAND_SCANNER_PKGDATA_DIR}")
 
-function(protocol protoPath protoName external)
+pkg_check_modules(hyprland_protocols_dep REQUIRED IMPORTED_TARGET hyprland-protocols>=0.6.0)
+pkg_get_variable(HYPRLAND_PROTOCOLS hyprland-protocols pkgdatadir)
+message(STATUS "Found hyprland-protocols at ${HYPRLAND_PROTOCOLS}")
+
+function(protocolnew protoPath protoName external)
   if(external)
-    execute_process(
-      COMMAND ${WaylandScanner} client-header ${protoPath}
-              protocols/${protoName}-protocol.h
-      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
-    execute_process(
-      COMMAND ${WaylandScanner} private-code ${protoPath}
-              protocols/${protoName}-protocol.c
-      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
-    target_sources(hypridle PRIVATE protocols/${protoName}-protocol.c)
+    set(path ${protoPath})
   else()
-    execute_process(
-      COMMAND
-        ${WaylandScanner} client-header ${WAYLAND_PROTOCOLS_DIR}/${protoPath}
-        protocols/${protoName}-protocol.h
-      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
-    execute_process(
-      COMMAND
-        ${WaylandScanner} private-code ${WAYLAND_PROTOCOLS_DIR}/${protoPath}
-        protocols/${protoName}-protocol.c
-      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
-    target_sources(hypridle PRIVATE protocols/${protoName}-protocol.c)
+    set(path ${WAYLAND_PROTOCOLS_DIR}/${protoPath})
   endif()
+  message(STATUS "Full proto path: ${path}")
+  add_custom_command(
+    OUTPUT ${CMAKE_SOURCE_DIR}/protocols/${protoName}.cpp
+           ${CMAKE_SOURCE_DIR}/protocols/${protoName}.hpp
+    COMMAND hyprwayland-scanner --client ${path}/${protoName}.xml
+            ${CMAKE_SOURCE_DIR}/protocols/
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+  target_sources(hypridle PRIVATE protocols/${protoName}.cpp
+                                   protocols/${protoName}.hpp)
+endfunction()
+function(protocolWayland)
+  add_custom_command(
+    OUTPUT ${CMAKE_SOURCE_DIR}/protocols/wayland.cpp
+           ${CMAKE_SOURCE_DIR}/protocols/wayland.hpp
+    COMMAND hyprwayland-scanner --wayland-enums --client
+            ${WAYLAND_SCANNER_PKGDATA_DIR}/wayland.xml ${CMAKE_SOURCE_DIR}/protocols/
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+  target_sources(hypridle PRIVATE protocols/wayland.cpp protocols/wayland.hpp)
 endfunction()
 
 make_directory(${CMAKE_SOURCE_DIR}/protocols) # we don't ship any custom ones so
-                                              # the dir won't be there
-protocol("staging/ext-idle-notify/ext-idle-notify-v1.xml" "ext-idle-notify-v1"
-         false)
+
+protocolwayland()
+
+protocolnew("staging/ext-idle-notify" "ext-idle-notify-v1" false)
+protocolnew("${HYPRLAND_PROTOCOLS}/protocols" "hyprland-lock-notify-v1" true)
 
 # Installation
 install(TARGETS hypridle)

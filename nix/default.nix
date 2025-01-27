@@ -1,11 +1,13 @@
 {
-  lib,
-  stdenv,
   cmake,
-  pkg-config,
+  hyprland-protocols,
   hyprlang,
   hyprutils,
+  hyprwayland-scanner,
+  lib,
+  pkg-config,
   sdbus-cpp,
+  stdenv,
   systemd,
   wayland,
   wayland-protocols,
@@ -19,11 +21,13 @@ stdenv.mkDerivation {
 
   nativeBuildInputs = [
     cmake
+    hyprwayland-scanner
     pkg-config
     wayland-scanner
   ];
 
   buildInputs = [
+    hyprland-protocols
     hyprlang
     hyprutils
     sdbus-cpp
