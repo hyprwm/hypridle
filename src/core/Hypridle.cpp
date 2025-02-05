@@ -313,7 +313,7 @@ void CHypridle::onLocked() {
     m_isLocked = true;
 
     static const auto LOCKCMD = g_pConfigManager->getValue<Hyprlang::STRING>("general:on_lock_cmd");
-    if (*LOCKCMD)
+    if (!std::string{*LOCKCMD}.empty())
         spawn(*LOCKCMD);
 
     if (m_inhibitSleepBehavior == SLEEP_INHIBIT_LOCK_NOTIFY)
@@ -328,7 +328,7 @@ void CHypridle::onUnlocked() {
         inhibitSleep();
 
     static const auto UNLOCKCMD = g_pConfigManager->getValue<Hyprlang::STRING>("general:on_unlock_cmd");
-    if (*UNLOCKCMD)
+    if (!std::string{*UNLOCKCMD}.empty())
         spawn(*UNLOCKCMD);
 }
 
