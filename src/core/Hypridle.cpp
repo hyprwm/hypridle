@@ -26,7 +26,7 @@ void setupSignals(void) {
     sigemptyset(&sa.sa_mask);
     sa.sa_flags   = SA_NOCLDSTOP | SA_NOCLDWAIT | SA_RESTART;
     sa.sa_handler = SIG_DFL;
-    sigaction(SIGCHLD, &sa, NULL);
+    sigaction(SIGCHLD, &sa, nullptr);
 }
 
 void CHypridle::run() {
@@ -260,11 +260,6 @@ static void spawn(const std::string& args) {
         sa.sa_flags   = 0;
         sa.sa_handler = SIG_DFL;
         sigaction(SIGCHLD, &sa, NULL);
-
-        // TODO: ??? Why do we need that ???
-        // We already make sure we have O_CLOEXEC and that should be enough. Still somehow, without this, releasing the inhibitor does not work.
-        // Somehow related to sdbus::UnixFd calling dup on the fd??
-        g_pHypridle->closeInhibitFd();
 
         execl("/bin/sh", "/bin/sh", "-c", args.c_str(), nullptr);
         _exit(1);
@@ -627,10 +622,10 @@ void CHypridle::inhibitSleep() {
         // There seems to be no way to get the file descriptor out of the reply other than that.
         reply >> fd;
 
-        m_sDBUSState.sleepInhibitFd = Hyprutils::OS::CFileDescriptor(fd.release());
-        auto flags                  = m_sDBUSState.sleepInhibitFd.getFlags();
-        if (!(flags & O_CLOEXEC) && !m_sDBUSState.sleepInhibitFd.setFlags(flags | O_CLOEXEC))
-            Debug::log(ERR, "Sleep inhibitor has no O_CLOEXEC");
+        // Setting the O_CLOEXEC flag does not work for some reason. Instead we make our own dupe and close the one from UnixFd.
+        auto immidiateFD            = Hyprutils::OS::CFileDescriptor(fd.release());
+        m_sDBUSState.sleepInhibitFd = immidiateFD.duplicate(F_DUPFD_CLOEXEC);
+        immidiateFD.reset(); // close the fd that was opened with dup
 
         Debug::log(LOG, "Inhibited sleep with fd {}", m_sDBUSState.sleepInhibitFd.get());
     } catch (const std::exception& e) { Debug::log(ERR, "Failed to inhibit sleep ({})", e.what()); }
@@ -643,9 +638,5 @@ void CHypridle::uninhibitSleep() {
     }
 
     Debug::log(LOG, "Releasing the sleep inhibitor!");
-    m_sDBUSState.sleepInhibitFd.reset();
-}
-
-void CHypridle::closeInhibitFd() {
     m_sDBUSState.sleepInhibitFd.reset();
 }

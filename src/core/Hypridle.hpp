@@ -49,8 +49,6 @@ class CHypridle {
     void               inhibitSleep();
     void               uninhibitSleep();
 
-    void               closeInhibitFd();
-
   private:
     void    setupDBUS();
     void    enterEventLoop();
