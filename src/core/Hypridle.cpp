@@ -506,11 +506,11 @@ static uint32_t handleDbusScreensaver(std::string app, std::string reason, uint3
         g_pHypridle->onInhibit(true);
     else
         g_pHypridle->onInhibit(false);
-    // Maybe instead of static_cast just change int to unsigned int?
-    static int cookieID = 1337;
+
+    static uint32_t cookieID = 1337;
 
     if (inhibit) {
-        auto cookie = CHypridle::SDbusInhibitCookie{.cookie = uint32_t{cookieID}, .app = app, .reason = reason, .ownerID = ownerID};
+        auto cookie = CHypridle::SDbusInhibitCookie{.cookie = cookieID, .app = app, .reason = reason, .ownerID = ownerID};
 
         Debug::log(LOG, "Cookie {} sent", cookieID);
 
