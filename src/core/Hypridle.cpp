@@ -258,7 +258,7 @@ static void spawn(const std::string& args) {
         sigemptyset(&sa.sa_mask);
         sa.sa_flags   = 0;
         sa.sa_handler = SIG_DFL;
-        sigaction(SIGCHLD, &sa, NULL);
+        sigaction(SIGCHLD, &sa, nullptr);
 
         execl("/bin/sh", "/bin/sh", "-c", args.c_str(), nullptr);
         _exit(1);
