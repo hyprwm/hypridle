@@ -1,12 +1,13 @@
 #include "Hypridle.hpp"
 #include "../helpers/Log.hpp"
 #include "../config/ConfigManager.hpp"
-#include "signal.h"
+#include "csignal"
 #include <sys/wait.h>
 #include <sys/poll.h>
 #include <sys/mman.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <algorithm>
 #include <thread>
 #include <mutex>
 
@@ -183,7 +184,7 @@ void CHypridle::enterEventLoop() {
         m_sEventLoopInternals.loopRequestMutex.unlock(); // unlock, we are ready to take events
 
         std::unique_lock lk(m_sEventLoopInternals.loopMutex);
-        if (m_sEventLoopInternals.shouldProcess == false) // avoid a lock if a thread managed to request something already since we .unlock()ed
+        if (!m_sEventLoopInternals.shouldProcess) // avoid a lock if a thread managed to request something already since we .unlock()ed
             m_sEventLoopInternals.loopSignal.wait(lk, [this] { return m_sEventLoopInternals.shouldProcess == true; }); // wait for events
 
         m_sEventLoopInternals.loopRequestMutex.lock(); // lock incoming events
@@ -252,7 +253,7 @@ static void spawn(const std::string& args) {
 
         sigset_t set;
         sigemptyset(&set);
-        sigprocmask(SIG_SETMASK, &set, NULL);
+        sigprocmask(SIG_SETMASK, &set, nullptr);
 
         grandchild = fork();
         if (grandchild == 0) {
@@ -274,7 +275,7 @@ static void spawn(const std::string& args) {
     read(socket[0], &grandchild, sizeof(grandchild));
     close(socket[0]);
     // clear child and leave grandchild to init
-    waitpid(child, NULL, 0);
+    waitpid(child, nullptr, 0);
     if (grandchild < 0) {
         Debug::log(LOG, "Failed to create the second fork");
         return;
@@ -384,8 +385,7 @@ void CHypridle::registerDbusInhibitCookie(CHypridle::SDbusInhibitCookie& cookie)
 }
 
 bool CHypridle::unregisterDbusInhibitCookie(const CHypridle::SDbusInhibitCookie& cookie) {
-    const auto IT = std::find_if(m_sDBUSState.inhibitCookies.begin(), m_sDBUSState.inhibitCookies.end(),
-                                 [&cookie](const CHypridle::SDbusInhibitCookie& item) { return item.cookie == cookie.cookie; });
+    const auto IT = std::ranges::find_if(m_sDBUSState.inhibitCookies, [&cookie](const CHypridle::SDbusInhibitCookie& item) { return item.cookie == cookie.cookie; });
 
     if (IT == m_sDBUSState.inhibitCookies.end())
         return false;
@@ -507,10 +507,10 @@ static uint32_t handleDbusScreensaver(std::string app, std::string reason, uint3
     else
         g_pHypridle->onInhibit(false);
 
-    static int cookieID = 1337;
+    static uint32_t cookieID = 1337;
 
     if (inhibit) {
-        auto cookie = CHypridle::SDbusInhibitCookie{uint32_t{cookieID}, app, reason, ownerID};
+        auto cookie = CHypridle::SDbusInhibitCookie{.cookie = cookieID, .app = app, .reason = reason, .ownerID = ownerID};
 
         Debug::log(LOG, "Cookie {} sent", cookieID);
 
