@@ -19,7 +19,7 @@ CHypridle::CHypridle() {
     }
 }
 
-void setupSignals(void) {
+static void setupSignals() {
     struct sigaction sa;
 
     // don't transform child processes into zombies and don't handle SIGCHLD.
@@ -259,7 +259,7 @@ static void spawn(const std::string& args) {
         sigemptyset(&sa.sa_mask);
         sa.sa_flags   = 0;
         sa.sa_handler = SIG_DFL;
-        sigaction(SIGCHLD, &sa, NULL);
+        sigaction(SIGCHLD, &sa, nullptr);
 
         execl("/bin/sh", "/bin/sh", "-c", args.c_str(), nullptr);
         _exit(1);
@@ -440,7 +440,7 @@ static void handleDbusSleep(sdbus::Message msg) {
         g_pHypridle->handleInhibitOnDbusSleep(toSleep);
 }
 
-void handleDbusBlockInhibits(const std::string& inhibits) {
+static void handleDbusBlockInhibits(const std::string& inhibits) {
     static auto inhibited = false;
     // BlockInhibited is a colon separated list of inhibit types. Wrapping in additional colons allows for easier checking if there are active inhibits we are interested in
     auto inhibits_ = ":" + inhibits + ":";
