@@ -3,6 +3,7 @@
 #include <memory>
 #include <vector>
 #include <sdbus-c++/sdbus-c++.h>
+#include <hyprutils/os/FileDescriptor.hpp>
 #include <condition_variable>
 
 #include "wayland.hpp"
@@ -83,7 +84,7 @@ class CHypridle {
         std::unique_ptr<sdbus::IProxy>               login;
         std::vector<std::unique_ptr<sdbus::IObject>> screenSaverObjects;
         std::vector<SDbusInhibitCookie>              inhibitCookies;
-        sdbus::UnixFd                                sleepInhibitFd;
+        Hyprutils::OS::CFileDescriptor               sleepInhibitFd;
     } m_sDBUSState;
 
     struct {
