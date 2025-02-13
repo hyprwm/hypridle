@@ -26,8 +26,9 @@ include(GNUInstallDirs)
 
 # configure
 set(CMAKE_CXX_STANDARD 23)
-add_compile_options(-Wall -Wextra -Wno-unused-parameter -Wno-unused-value
-                    -Wno-missing-field-initializers -Wno-narrowing)
+set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
+add_compile_options(-Wall -Wextra -Wuseless-cast -Wno-unused-parameter
+                    -Wno-unused-value -Wno-missing-field-initializers)
 configure_file(systemd/hypridle.service.in systemd/hypridle.service @ONLY)
 
 # dependencies
