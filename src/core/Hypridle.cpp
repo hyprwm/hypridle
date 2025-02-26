@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <thread>
 #include <mutex>
+#include <hyprutils/os/Process.hpp>
 
 CHypridle::CHypridle() {
     m_sWaylandState.display = wl_display_connect(nullptr);
@@ -19,19 +20,7 @@ CHypridle::CHypridle() {
     }
 }
 
-static void setupSignals() {
-    struct sigaction sa;
-
-    // don't transform child processes into zombies and don't handle SIGCHLD.
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags   = SA_NOCLDSTOP | SA_NOCLDWAIT | SA_RESTART;
-    sa.sa_handler = SIG_DFL;
-    sigaction(SIGCHLD, &sa, nullptr);
-}
-
 void CHypridle::run() {
-    setupSignals();
-
     m_sWaylandState.registry = makeShared<CCWlRegistry>((wl_proxy*)wl_display_get_registry(m_sWaylandState.display));
     m_sWaylandState.registry->setGlobal([this](CCWlRegistry* r, uint32_t name, const char* interface, uint32_t version) {
         const std::string IFACE = interface;
@@ -247,25 +236,13 @@ void CHypridle::enterEventLoop() {
 static void spawn(const std::string& args) {
     Debug::log(LOG, "Executing {}", args);
 
-    pid_t child = fork();
-    if (child < 0) {
-        Debug::log(ERR, "Failed to fork");
+    Hyprutils::OS::CProcess proc("/bin/sh", {"-c", args});
+    if (!proc.runAsync()) {
+        Debug::log(ERR, "Failed run \"{}\"", args);
         return;
-    } else if (child == 0) {
-        setsid();
-
-        struct sigaction sa;
-        // reset signals to the default
-        sigemptyset(&sa.sa_mask);
-        sa.sa_flags   = 0;
-        sa.sa_handler = SIG_DFL;
-        sigaction(SIGCHLD, &sa, nullptr);
-
-        execl("/bin/sh", "/bin/sh", "-c", args.c_str(), nullptr);
-        _exit(1);
     }
 
-    Debug::log(LOG, "Process Created with pid {}", child);
+    Debug::log(LOG, "Process Created with pid {}", proc.pid());
 }
 
 void CHypridle::onIdled(SIdleListener* pListener) {
