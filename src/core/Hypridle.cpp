@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <thread>
 #include <mutex>
+#include <hyprutils/os/Process.hpp>
 
 CHypridle::CHypridle() {
     m_sWaylandState.display = wl_display_connect(nullptr);
@@ -235,53 +236,13 @@ void CHypridle::enterEventLoop() {
 static void spawn(const std::string& args) {
     Debug::log(LOG, "Executing {}", args);
 
-    int socket[2];
-    if (pipe(socket) != 0) {
-        Debug::log(LOG, "Unable to create pipe for fork");
-    }
-
-    pid_t child, grandchild;
-    child = fork();
-    if (child < 0) {
-        close(socket[0]);
-        close(socket[1]);
-        Debug::log(LOG, "Fail to create the first fork");
-        return;
-    }
-    if (child == 0) {
-        // run in child
-
-        sigset_t set;
-        sigemptyset(&set);
-        sigprocmask(SIG_SETMASK, &set, nullptr);
-
-        grandchild = fork();
-        if (grandchild == 0) {
-            // run in grandchild
-            close(socket[0]);
-            close(socket[1]);
-            execl("/bin/sh", "/bin/sh", "-c", args.c_str(), nullptr);
-            // exit grandchild
-            _exit(0);
-        }
-        close(socket[0]);
-        write(socket[1], &grandchild, sizeof(grandchild));
-        close(socket[1]);
-        // exit child
-        _exit(0);
-    }
-    // run in parent
-    close(socket[1]);
-    read(socket[0], &grandchild, sizeof(grandchild));
-    close(socket[0]);
-    // clear child and leave grandchild to init
-    waitpid(child, nullptr, 0);
-    if (grandchild < 0) {
-        Debug::log(LOG, "Failed to create the second fork");
+    Hyprutils::OS::CProcess proc("/bin/sh", {"-c", args});
+    if (!proc.runAsync()) {
+        Debug::log(ERR, "Failed run \"{}\"", args);
         return;
     }
 
-    Debug::log(LOG, "Process Created with pid {}", grandchild);
+    Debug::log(LOG, "Process Created with pid {}", proc.pid());
 }
 
 void CHypridle::onIdled(SIdleListener* pListener) {
@@ -424,7 +385,7 @@ static void handleDbusLogin(sdbus::Message msg) {
         Debug::log(LOG, "Got Unlock from dbus");
 
         if (!std::string{*UNLOCKCMD}.empty()) {
-            Debug::log(LOG, "Locking with {}", *UNLOCKCMD);
+            Debug::log(LOG, "Unlocking with {}", *UNLOCKCMD);
             spawn(*UNLOCKCMD);
         }
     }
@@ -456,7 +417,7 @@ static void handleDbusSleep(sdbus::Message msg) {
         g_pHypridle->handleInhibitOnDbusSleep(toSleep);
 }
 
-void handleDbusBlockInhibits(const std::string& inhibits) {
+static void handleDbusBlockInhibits(const std::string& inhibits) {
     static auto inhibited = false;
     // BlockInhibited is a colon separated list of inhibit types. Wrapping in additional colons allows for easier checking if there are active inhibits we are interested in
     auto inhibits_ = ":" + inhibits + ":";
@@ -609,6 +570,11 @@ void CHypridle::handleInhibitOnDbusSleep(bool toSleep) {
 }
 
 void CHypridle::inhibitSleep() {
+    if (m_sDBUSState.sleepInhibitFd.isValid()) {
+        Debug::log(WARN, "Called inhibitSleep, but previous sleep inhibitor is still active!");
+        m_sDBUSState.sleepInhibitFd.reset();
+    }
+
     auto method = m_sDBUSState.login->createMethodCall(sdbus::InterfaceName{"org.freedesktop.login1.Manager"}, sdbus::MethodName{"Inhibit"});
     method << "sleep";
     method << "hypridle";
@@ -628,11 +594,18 @@ void CHypridle::inhibitSleep() {
             return;
         }
 
-        reply >> m_sDBUSState.sleepInhibitFd;
-        Debug::log(TRACE, "Inhibited sleep with fd {}", m_sDBUSState.sleepInhibitFd.get());
-    } catch (const std::exception& e) { Debug::log(ERR, "Failed to inhibit sleep ({})", e.what()); }
+        sdbus::UnixFd fd;
+        // This calls dup on the fd, no F_DUPFD_CLOEXEC :(
+        // There seems to be no way to get the file descriptor out of the reply other than that.
+        reply >> fd;
 
-    Debug::log(LOG, "Inhibited sleep!");
+        // Setting the O_CLOEXEC flag does not work for some reason. Instead we make our own dupe and close the one from UnixFd.
+        auto immidiateFD            = Hyprutils::OS::CFileDescriptor(fd.release());
+        m_sDBUSState.sleepInhibitFd = immidiateFD.duplicate(F_DUPFD_CLOEXEC);
+        immidiateFD.reset(); // close the fd that was opened with dup
+
+        Debug::log(LOG, "Inhibited sleep with fd {}", m_sDBUSState.sleepInhibitFd.get());
+    } catch (const std::exception& e) { Debug::log(ERR, "Failed to inhibit sleep ({})", e.what()); }
 }
 
 void CHypridle::uninhibitSleep() {
@@ -642,5 +615,5 @@ void CHypridle::uninhibitSleep() {
     }
 
     Debug::log(LOG, "Releasing the sleep inhibitor!");
-    close(m_sDBUSState.sleepInhibitFd.release());
+    m_sDBUSState.sleepInhibitFd.reset();
 }
