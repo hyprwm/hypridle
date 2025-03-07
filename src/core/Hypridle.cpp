@@ -551,7 +551,13 @@ void CHypridle::setupDBUS() {
 
             m_sDBUSState.screenSaverServiceConnection->addMatch("type='signal',sender='org.freedesktop.DBus',interface='org.freedesktop.DBus',member='NameOwnerChanged'",
                                                                 ::handleDbusNameOwnerChanged);
-        } catch (std::exception& e) { Debug::log(ERR, "Couldn't connect to session dbus\nerr: {}", e.what()); }
+        } catch (sdbus::Error& e) {
+            if (e.getName() == sdbus::Error::Name{"org.freedesktop.DBus.Error.FileExists"}) {
+                Debug::log(ERR, "Another service is already providing the org.freedesktop.ScreenSaver interface");
+                Debug::log(ERR, "Is hypridle already running?");
+            } else
+                Debug::log(ERR, "Failed to connect to ScreenSaver service\nerr: {}", e.what());
+        }
     }
 
     systemConnection.reset();
