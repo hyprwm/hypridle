@@ -313,8 +313,10 @@ void CHypridle::onLocked() {
     m_isLocked = true;
 
     static const auto LOCKCMD = g_pConfigManager->getValue<Hyprlang::STRING>("general:on_lock_cmd");
-    if (*LOCKCMD)
-        spawn(*LOCKCMD);
+    if (*LOCKCMD) {
+        if (const std::string LOCKCMDSTR{*LOCKCMD}; !LOCKCMDSTR.empty())
+            spawn(LOCKCMDSTR);
+    }
 
     if (m_inhibitSleepBehavior == SLEEP_INHIBIT_LOCK_NOTIFY)
         uninhibitSleep();
@@ -328,8 +330,10 @@ void CHypridle::onUnlocked() {
         inhibitSleep();
 
     static const auto UNLOCKCMD = g_pConfigManager->getValue<Hyprlang::STRING>("general:on_unlock_cmd");
-    if (*UNLOCKCMD)
-        spawn(*UNLOCKCMD);
+    if (*UNLOCKCMD) {
+        if (const std::string UNLOCKCMDSTR{*UNLOCKCMD}; !UNLOCKCMDSTR.empty())
+            spawn(UNLOCKCMDSTR);
+    }
 }
 
 CHypridle::SDbusInhibitCookie CHypridle::getDbusInhibitCookie(uint32_t cookie) {
