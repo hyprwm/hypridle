@@ -4,6 +4,7 @@
 
 #include <hyprlang.hpp>
 
+#include <set>
 #include <vector>
 #include <memory>
 
@@ -21,6 +22,7 @@ class CConfigManager {
     std::vector<STimeoutRule>  getRules();
     std::optional<std::string> handleSource(const std::string&, const std::string&);
     std::string                configCurrentPath;
+    std::set<std::string>      alreadyIncludedSourceFiles;
 
     template <typename T>
     Hyprlang::CSimpleConfigValue<T> getValue(const std::string& name) {

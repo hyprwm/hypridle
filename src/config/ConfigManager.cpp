@@ -48,6 +48,10 @@ void CConfigManager::init() {
     m_config.addConfigValue("general:ignore_systemd_inhibit", Hyprlang::INT{0});
     m_config.addConfigValue("general:inhibit_sleep", Hyprlang::INT{2});
 
+    // track the file in the circular dependency chain
+    const auto mainConfigPath = getMainConfigPath();
+    alreadyIncludedSourceFiles.insert(std::filesystem::canonical(mainConfigPath));
+
     m_config.registerHandler(&::handleSource, "source", {.allowFlags = false});
 
     m_config.commence();
@@ -123,6 +127,11 @@ std::optional<std::string> CConfigManager::handleSource(const std::string& comma
             continue;
         }
 
+        if (std::find(alreadyIncludedSourceFiles.begin(), alreadyIncludedSourceFiles.end(), PATH) != alreadyIncludedSourceFiles.end()) {
+            Debug::log(WARN, "source= skipping already included source file {} to prevent circular dependency", PATH);
+            continue;
+        }
+
         if (!std::filesystem::is_regular_file(PATH)) {
             if (std::filesystem::exists(PATH)) {
                 Debug::log(WARN, "source= skipping non-file {}", PATH);
@@ -132,6 +141,9 @@ std::optional<std::string> CConfigManager::handleSource(const std::string& comma
             Debug::log(ERR, "source= file doesnt exist");
             return "source file " + PATH + " doesn't exist!";
         }
+
+        // track the file in the circular dependency chain
+        alreadyIncludedSourceFiles.insert(PATH);
 
         // allow for nested config parsing
         auto backupConfigPath = configCurrentPath;
