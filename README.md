@@ -34,6 +34,7 @@ will make those events ignored.
 ## Dependencies
  - wayland
  - wayland-protocols
+ - hyprland-protocols
  - hyprlang >= 0.4.0
  - sdbus-c++
  - hyprwayland-scanner
