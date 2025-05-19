@@ -576,6 +576,11 @@ void CHypridle::handleInhibitOnDbusSleep(bool toSleep) {
 }
 
 void CHypridle::inhibitSleep() {
+    if (!m_sDBUSState.login) {
+        Debug::log(WARN, "Can't inhibit sleep. Dbus logind interface is not available.");
+        return;
+    }
+
     if (m_sDBUSState.sleepInhibitFd.isValid()) {
         Debug::log(WARN, "Called inhibitSleep, but previous sleep inhibitor is still active!");
         m_sDBUSState.sleepInhibitFd.reset();
