@@ -54,6 +54,8 @@ void CHypridle::run() {
         exit(1);
     }
 
+    static const auto IGNOREWAYLANDINHIBIT = g_pConfigManager->getValue<Hyprlang::INT>("general:ignore_wayland_inhibit");
+
     const auto RULES = g_pConfigManager->getRules();
     m_sWaylandIdleState.listeners.resize(RULES.size());
 
@@ -64,8 +66,16 @@ void CHypridle::run() {
         const auto& r = RULES[i];
         l.onRestore   = r.onResume;
         l.onTimeout   = r.onTimeout;
+        l.ignoreInhibit = r.ignoreInhibit;
 
-        l.notification = makeShared<CCExtIdleNotificationV1>(m_sWaylandIdleState.notifier->sendGetIdleNotification(r.timeout * 1000 /* ms */, m_sWaylandState.seat->resource()));
+        auto notificationFunc = (*IGNOREWAYLANDINHIBIT || r.ignoreInhibit) ?
+            &CCExtIdleNotifierV1::sendGetInputIdleNotification :
+            &CCExtIdleNotifierV1::sendGetIdleNotification;
+
+        l.notification = makeShared<CCExtIdleNotificationV1>(
+            (*(m_sWaylandIdleState.notifier).*(notificationFunc))
+            (r.timeout * 1000 /* ms */, m_sWaylandState.seat->resource()));
+
         l.notification->setData(&m_sWaylandIdleState.listeners[i]);
 
         l.notification->setIdled([this](CCExtIdleNotificationV1* n) { onIdled((CHypridle::SIdleListener*)n->data()); });
@@ -248,7 +258,7 @@ static void spawn(const std::string& args) {
 void CHypridle::onIdled(SIdleListener* pListener) {
     Debug::log(LOG, "Idled: rule {:x}", (uintptr_t)pListener);
     isIdled = true;
-    if (g_pHypridle->m_iInhibitLocks > 0) {
+    if (g_pHypridle->m_iInhibitLocks > 0 && !pListener->ignoreInhibit) {
         Debug::log(LOG, "Ignoring from onIdled(), inhibit locks: {}", g_pHypridle->m_iInhibitLocks);
         return;
     }
@@ -265,7 +275,7 @@ void CHypridle::onIdled(SIdleListener* pListener) {
 void CHypridle::onResumed(SIdleListener* pListener) {
     Debug::log(LOG, "Resumed: rule {:x}", (uintptr_t)pListener);
     isIdled = false;
-    if (g_pHypridle->m_iInhibitLocks > 0) {
+    if (g_pHypridle->m_iInhibitLocks > 0 && !pListener->ignoreInhibit) {
         Debug::log(LOG, "Ignoring from onResumed(), inhibit locks: {}", g_pHypridle->m_iInhibitLocks);
         return;
     }
@@ -288,16 +298,23 @@ void CHypridle::onInhibit(bool lock) {
     }
 
     if (m_iInhibitLocks == 0 && isIdled) {
-        const auto RULES = g_pConfigManager->getRules();
+        static const auto IGNOREWAYLANDINHIBIT = g_pConfigManager->getValue<Hyprlang::INT>("general:ignore_wayland_inhibit");
 
+        const auto RULES = g_pConfigManager->getRules();
         for (size_t i = 0; i < RULES.size(); ++i) {
             auto&       l = m_sWaylandIdleState.listeners[i];
             const auto& r = RULES[i];
 
             l.notification->sendDestroy();
 
-            l.notification =
-                makeShared<CCExtIdleNotificationV1>(m_sWaylandIdleState.notifier->sendGetIdleNotification(r.timeout * 1000 /* ms */, m_sWaylandState.seat->resource()));
+            auto notificationFunc = (*IGNOREWAYLANDINHIBIT || r.ignoreInhibit) ?
+                &CCExtIdleNotifierV1::sendGetInputIdleNotification :
+                &CCExtIdleNotifierV1::sendGetIdleNotification;
+
+            l.notification = makeShared<CCExtIdleNotificationV1>(
+                (*(m_sWaylandIdleState.notifier).*(notificationFunc))
+                (r.timeout * 1000 /* ms */, m_sWaylandState.seat->resource()));
+
             l.notification->setData(&m_sWaylandIdleState.listeners[i]);
 
             l.notification->setIdled([this](CCExtIdleNotificationV1* n) { onIdled((CHypridle::SIdleListener*)n->data()); });
