@@ -55,7 +55,6 @@ void CHypridle::run() {
     }
 
     static const auto IGNOREWAYLANDINHIBIT = g_pConfigManager->getValue<Hyprlang::INT>("general:ignore_wayland_inhibit");
-    static const auto notificationFunc = *IGNOREWAYLANDINHIBIT ? &CCExtIdleNotifierV1::sendGetInputIdleNotification : &CCExtIdleNotifierV1::sendGetIdleNotification;
 
     const auto RULES = g_pConfigManager->getRules();
     m_sWaylandIdleState.listeners.resize(RULES.size());
@@ -68,9 +67,10 @@ void CHypridle::run() {
         l.onRestore   = r.onResume;
         l.onTimeout   = r.onTimeout;
 
-        l.notification = makeShared<CCExtIdleNotificationV1>(
-            (*(m_sWaylandIdleState.notifier).*(notificationFunc))
-            (r.timeout * 1000 /* ms */, m_sWaylandState.seat->resource()));
+        if (!*IGNOREWAYLANDINHIBIT)
+            l.notification = makeShared<CCExtIdleNotificationV1>(m_sWaylandIdleState.notifier->sendGetIdleNotification(r.timeout * 1000 /* ms */, m_sWaylandState.seat->resource()));
+        else
+            l.notification = makeShared<CCExtIdleNotificationV1>(m_sWaylandIdleState.notifier->sendGetInputIdleNotification(r.timeout * 1000 /* ms */, m_sWaylandState.seat->resource()));
 
         l.notification->setData(&m_sWaylandIdleState.listeners[i]);
 
@@ -295,7 +295,6 @@ void CHypridle::onInhibit(bool lock) {
 
     if (m_iInhibitLocks == 0 && isIdled) {
         static const auto IGNOREWAYLANDINHIBIT = g_pConfigManager->getValue<Hyprlang::INT>("general:ignore_wayland_inhibit");
-        static const auto notificationFunc = *IGNOREWAYLANDINHIBIT ? &CCExtIdleNotifierV1::sendGetInputIdleNotification : &CCExtIdleNotifierV1::sendGetIdleNotification;
 
         const auto RULES = g_pConfigManager->getRules();
 
@@ -305,9 +304,10 @@ void CHypridle::onInhibit(bool lock) {
 
             l.notification->sendDestroy();
 
-            l.notification = makeShared<CCExtIdleNotificationV1>(
-                (*(m_sWaylandIdleState.notifier).*(notificationFunc))
-                (r.timeout * 1000 /* ms */, m_sWaylandState.seat->resource()));
+            if (!*IGNOREWAYLANDINHIBIT)
+                l.notification = makeShared<CCExtIdleNotificationV1>(m_sWaylandIdleState.notifier->sendGetIdleNotification(r.timeout * 1000 /* ms */, m_sWaylandState.seat->resource()));
+            else
+                l.notification = makeShared<CCExtIdleNotificationV1>(m_sWaylandIdleState.notifier->sendGetInputIdleNotification(r.timeout * 1000 /* ms */, m_sWaylandState.seat->resource()));
 
             l.notification->setData(&m_sWaylandIdleState.listeners[i]);
 
