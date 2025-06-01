@@ -68,13 +68,10 @@ void CHypridle::run() {
         l.onTimeout   = r.onTimeout;
         l.ignoreInhibit = r.ignoreInhibit;
 
-        auto notificationFunc = (*IGNOREWAYLANDINHIBIT || r.ignoreInhibit) ?
-            &CCExtIdleNotifierV1::sendGetInputIdleNotification :
-            &CCExtIdleNotifierV1::sendGetIdleNotification;
-
-        l.notification = makeShared<CCExtIdleNotificationV1>(
-            (*(m_sWaylandIdleState.notifier).*(notificationFunc))
-            (r.timeout * 1000 /* ms */, m_sWaylandState.seat->resource()));
+        if (*IGNOREWAYLANDINHIBIT || r.ignoreInhibit)
+            l.notification = makeShared<CCExtIdleNotificationV1>(m_sWaylandIdleState.notifier->sendGetInputIdleNotification(r.timeout * 1000 /* ms */, m_sWaylandState.seat->resource()));
+        else
+            l.notification = makeShared<CCExtIdleNotificationV1>(m_sWaylandIdleState.notifier->sendGetIdleNotification(r.timeout * 1000 /* ms */, m_sWaylandState.seat->resource()));
 
         l.notification->setData(&m_sWaylandIdleState.listeners[i]);
 
@@ -307,13 +304,10 @@ void CHypridle::onInhibit(bool lock) {
 
             l.notification->sendDestroy();
 
-            auto notificationFunc = (*IGNOREWAYLANDINHIBIT || r.ignoreInhibit) ?
-                &CCExtIdleNotifierV1::sendGetInputIdleNotification :
-                &CCExtIdleNotifierV1::sendGetIdleNotification;
-
-            l.notification = makeShared<CCExtIdleNotificationV1>(
-                (*(m_sWaylandIdleState.notifier).*(notificationFunc))
-                (r.timeout * 1000 /* ms */, m_sWaylandState.seat->resource()));
+            if (*IGNOREWAYLANDINHIBIT || r.ignoreInhibit)
+                l.notification = makeShared<CCExtIdleNotificationV1>(m_sWaylandIdleState.notifier->sendGetInputIdleNotification(r.timeout * 1000 /* ms */, m_sWaylandState.seat->resource()));
+            else
+                l.notification = makeShared<CCExtIdleNotificationV1>(m_sWaylandIdleState.notifier->sendGetIdleNotification(r.timeout * 1000 /* ms */, m_sWaylandState.seat->resource()));
 
             l.notification->setData(&m_sWaylandIdleState.listeners[i]);
 
