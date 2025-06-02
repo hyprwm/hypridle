@@ -56,22 +56,24 @@ void CHypridle::run() {
 
     static const auto IGNOREWAYLANDINHIBIT = g_pConfigManager->getValue<Hyprlang::INT>("general:ignore_wayland_inhibit");
 
-    const auto RULES = g_pConfigManager->getRules();
+    const auto        RULES = g_pConfigManager->getRules();
     m_sWaylandIdleState.listeners.resize(RULES.size());
 
     Debug::log(LOG, "found {} rules", RULES.size());
 
     for (size_t i = 0; i < RULES.size(); ++i) {
-        auto&       l = m_sWaylandIdleState.listeners[i];
-        const auto& r = RULES[i];
-        l.onRestore   = r.onResume;
-        l.onTimeout   = r.onTimeout;
+        auto&       l   = m_sWaylandIdleState.listeners[i];
+        const auto& r   = RULES[i];
+        l.onRestore     = r.onResume;
+        l.onTimeout     = r.onTimeout;
         l.ignoreInhibit = r.ignoreInhibit;
 
         if (*IGNOREWAYLANDINHIBIT || r.ignoreInhibit)
-            l.notification = makeShared<CCExtIdleNotificationV1>(m_sWaylandIdleState.notifier->sendGetInputIdleNotification(r.timeout * 1000 /* ms */, m_sWaylandState.seat->resource()));
+            l.notification =
+                makeShared<CCExtIdleNotificationV1>(m_sWaylandIdleState.notifier->sendGetInputIdleNotification(r.timeout * 1000 /* ms */, m_sWaylandState.seat->resource()));
         else
-            l.notification = makeShared<CCExtIdleNotificationV1>(m_sWaylandIdleState.notifier->sendGetIdleNotification(r.timeout * 1000 /* ms */, m_sWaylandState.seat->resource()));
+            l.notification =
+                makeShared<CCExtIdleNotificationV1>(m_sWaylandIdleState.notifier->sendGetIdleNotification(r.timeout * 1000 /* ms */, m_sWaylandState.seat->resource()));
 
         l.notification->setData(&m_sWaylandIdleState.listeners[i]);
 
@@ -297,7 +299,7 @@ void CHypridle::onInhibit(bool lock) {
     if (m_iInhibitLocks == 0 && isIdled) {
         static const auto IGNOREWAYLANDINHIBIT = g_pConfigManager->getValue<Hyprlang::INT>("general:ignore_wayland_inhibit");
 
-        const auto RULES = g_pConfigManager->getRules();
+        const auto        RULES = g_pConfigManager->getRules();
         for (size_t i = 0; i < RULES.size(); ++i) {
             auto&       l = m_sWaylandIdleState.listeners[i];
             const auto& r = RULES[i];
@@ -305,9 +307,11 @@ void CHypridle::onInhibit(bool lock) {
             l.notification->sendDestroy();
 
             if (*IGNOREWAYLANDINHIBIT || r.ignoreInhibit)
-                l.notification = makeShared<CCExtIdleNotificationV1>(m_sWaylandIdleState.notifier->sendGetInputIdleNotification(r.timeout * 1000 /* ms */, m_sWaylandState.seat->resource()));
+                l.notification =
+                    makeShared<CCExtIdleNotificationV1>(m_sWaylandIdleState.notifier->sendGetInputIdleNotification(r.timeout * 1000 /* ms */, m_sWaylandState.seat->resource()));
             else
-                l.notification = makeShared<CCExtIdleNotificationV1>(m_sWaylandIdleState.notifier->sendGetIdleNotification(r.timeout * 1000 /* ms */, m_sWaylandState.seat->resource()));
+                l.notification =
+                    makeShared<CCExtIdleNotificationV1>(m_sWaylandIdleState.notifier->sendGetIdleNotification(r.timeout * 1000 /* ms */, m_sWaylandState.seat->resource()));
 
             l.notification->setData(&m_sWaylandIdleState.listeners[i]);
 

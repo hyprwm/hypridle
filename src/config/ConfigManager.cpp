@@ -98,7 +98,8 @@ Hyprlang::CParseResult CConfigManager::postParse() {
     }
 
     for (auto& r : m_vRules) {
-        Debug::log(LOG, "Registered timeout rule for {}s:\n      on-timeout: {}\n      on-resume: {}\n      ignore_inhibit: {}", r.timeout, r.onTimeout, r.onResume, r.ignoreInhibit);
+        Debug::log(LOG, "Registered timeout rule for {}s:\n      on-timeout: {}\n      on-resume: {}\n      ignore_inhibit: {}", r.timeout, r.onTimeout, r.onResume,
+                   r.ignoreInhibit);
     }
 
     return result;

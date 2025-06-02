@@ -14,9 +14,9 @@ class CConfigManager {
     void init();
 
     struct STimeoutRule {
-        uint64_t    timeout   = 0;
-        std::string onTimeout = "";
-        std::string onResume  = "";
+        uint64_t    timeout       = 0;
+        std::string onTimeout     = "";
+        std::string onResume      = "";
         bool        ignoreInhibit = false;
     };
 
