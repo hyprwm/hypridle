@@ -1,3 +1,4 @@
+
 #include "Hypridle.hpp"
 #include "../helpers/Log.hpp"
 #include "../config/ConfigManager.hpp"
