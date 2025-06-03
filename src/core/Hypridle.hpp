@@ -17,9 +17,10 @@ class CHypridle {
     CHypridle();
 
     struct SIdleListener {
-        SP<CCExtIdleNotificationV1> notification = nullptr;
-        std::string                 onTimeout    = "";
-        std::string                 onRestore    = "";
+        SP<CCExtIdleNotificationV1> notification  = nullptr;
+        std::string                 onTimeout     = "";
+        std::string                 onRestore     = "";
+        bool                        ignoreInhibit = false;
     };
 
     struct SDbusInhibitCookie {
