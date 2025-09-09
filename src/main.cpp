@@ -40,14 +40,13 @@ int main(int argc, char** argv, char** envp) {
 
         else if (arg == "--help" || arg == "-h") {
             Debug::log(NONE,
-                "Usage: hypridle [options]\n"
-                "Options:\n"
-                "  -v, --verbose       Enable verbose logging\n"
-                "  -q, --quiet         Suppress all output except errors\n"
-                "  -V, --version       Show version information\n"
-                "  -c, --config <path> Specify a custom config file path\n"
-                "  -h, --help          Show this help message"
-            );
+                       "Usage: hypridle [options]\n"
+                       "Options:\n"
+                       "  -v, --verbose       Enable verbose logging\n"
+                       "  -q, --quiet         Suppress all output except errors\n"
+                       "  -V, --version       Show version information\n"
+                       "  -c, --config <path> Specify a custom config file path\n"
+                       "  -h, --help          Show this help message");
             return 0;
         }
     }

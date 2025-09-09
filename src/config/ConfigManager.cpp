@@ -18,6 +18,7 @@ CConfigManager::CConfigManager(std::string configPath) :
     m_config(configPath.empty() ? getMainConfigPath().c_str() : configPath.c_str(), Hyprlang::SConfigOptions{.throwAllErrors = true, .allowMissingConfig = false}) {
     ;
     configCurrentPath = configPath.empty() ? getMainConfigPath() : configPath;
+    configHeadPath    = configCurrentPath;
 }
 
 static Hyprlang::CParseResult handleSource(const char* c, const char* v) {
@@ -51,8 +52,7 @@ void CConfigManager::init() {
     m_config.addConfigValue("general:inhibit_sleep", Hyprlang::INT{2});
 
     // track the file in the circular dependency chain
-    const auto mainConfigPath = getMainConfigPath();
-    alreadyIncludedSourceFiles.insert(std::filesystem::canonical(mainConfigPath));
+    alreadyIncludedSourceFiles.insert(std::filesystem::canonical(configHeadPath));
 
     m_config.registerHandler(&::handleSource, "source", {.allowFlags = false});
 

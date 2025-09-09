@@ -22,7 +22,7 @@ class CConfigManager {
 
     std::vector<STimeoutRule>  getRules();
     std::optional<std::string> handleSource(const std::string&, const std::string&);
-    std::string                configCurrentPath;
+    std::string                configCurrentPath, configHeadPath;
     std::set<std::string>      alreadyIncludedSourceFiles;
 
     template <typename T>
