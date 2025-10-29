@@ -371,15 +371,8 @@ bool CHypridle::unregisterDbusInhibitCookie(const CHypridle::SDbusInhibitCookie&
     return true;
 }
 
-bool CHypridle::unregisterDbusInhibitCookies(const std::string& ownerID) {
-    const auto IT = std::remove_if(m_sDBUSState.inhibitCookies.begin(), m_sDBUSState.inhibitCookies.end(),
-                                   [&ownerID](const CHypridle::SDbusInhibitCookie& item) { return item.ownerID == ownerID; });
-
-    if (IT == m_sDBUSState.inhibitCookies.end())
-        return false;
-
-    m_sDBUSState.inhibitCookies.erase(IT, m_sDBUSState.inhibitCookies.end());
-    return true;
+size_t CHypridle::unregisterDbusInhibitCookies(const std::string& ownerID) {
+    return std::erase_if(m_sDBUSState.inhibitCookies, [&ownerID](const CHypridle::SDbusInhibitCookie& item) { return item.ownerID == ownerID; });
 }
 
 static void handleDbusLogin(sdbus::Message msg) {
@@ -461,6 +454,7 @@ static void handleDbusBlockInhibitsPropertyChanged(sdbus::Message msg) {
 
 static uint32_t handleDbusScreensaver(std::string app, std::string reason, uint32_t cookie, bool inhibit, const char* sender) {
     std::string ownerID = sender;
+    bool cookieFound = false;
 
     if (!inhibit) {
         Debug::log(TRACE, "Read uninhibit cookie: {}", cookie);
@@ -471,6 +465,7 @@ static uint32_t handleDbusScreensaver(std::string app, std::string reason, uint3
             app     = COOKIE.app;
             reason  = COOKIE.reason;
             ownerID = COOKIE.ownerID;
+            cookieFound = true;
 
             if (!g_pHypridle->unregisterDbusInhibitCookie(COOKIE))
                 Debug::log(WARN, "BUG THIS: attempted to unregister unknown cookie");
@@ -481,7 +476,7 @@ static uint32_t handleDbusScreensaver(std::string app, std::string reason, uint3
 
     if (inhibit)
         g_pHypridle->onInhibit(true);
-    else
+    else if (cookieFound)
         g_pHypridle->onInhibit(false);
 
     static uint32_t cookieID = 1337;
@@ -506,9 +501,11 @@ static void handleDbusNameOwnerChanged(sdbus::Message msg) {
     if (!newOwner.empty())
         return;
 
-    if (g_pHypridle->unregisterDbusInhibitCookies(oldOwner)) {
+    size_t removed = g_pHypridle->unregisterDbusInhibitCookies(oldOwner);
+    if (removed > 0) {
         Debug::log(LOG, "App with owner {} disconnected", oldOwner);
-        g_pHypridle->onInhibit(false);
+        for (size_t i = 0; i < removed; i++)
+            g_pHypridle->onInhibit(false);
     }
 }
 
