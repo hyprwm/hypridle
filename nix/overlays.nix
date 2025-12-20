@@ -17,7 +17,6 @@ in {
     inputs.hyprlang.overlays.default
     inputs.hyprutils.overlays.default
     inputs.hyprwayland-scanner.overlays.default
-    inputs.self.overlays.sdbuscpp
     (final: prev: {
       hypridle = prev.callPackage ./default.nix {
         stdenv = prev.gcc15Stdenv;
@@ -26,17 +25,4 @@ in {
       };
     })
   ];
-
-  sdbuscpp = final: prev: {
-    sdbus-cpp = prev.sdbus-cpp.overrideAttrs (self: super: {
-      version = "2.0.0";
-
-      src = final.fetchFromGitHub {
-        owner = "Kistler-group";
-        repo = "sdbus-cpp";
-        rev = "refs/tags/v${self.version}";
-        hash = "sha256-W8V5FRhV3jtERMFrZ4gf30OpIQLYoj2yYGpnYOmH2+g=";
-      };
-    });
-  };
 }

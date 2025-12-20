@@ -6,7 +6,7 @@
   hyprwayland-scanner,
   lib,
   pkg-config,
-  sdbus-cpp,
+  sdbus-cpp_2,
   stdenv,
   systemd,
   wayland,
@@ -30,7 +30,7 @@ stdenv.mkDerivation {
     hyprland-protocols
     hyprlang
     hyprutils
-    sdbus-cpp
+    sdbus-cpp_2
     systemd
     wayland
     wayland-protocols
