@@ -15,7 +15,7 @@ static std::string getMainConfigPath() {
 }
 
 CConfigManager::CConfigManager(std::string configPath) :
-    m_config(configPath.empty() ? getMainConfigPath().c_str() : configPath.c_str(), Hyprlang::SConfigOptions{.throwAllErrors = true, .allowMissingConfig = false}) {
+    m_config(configPath.empty() ? getMainConfigPath().c_str() : configPath.c_str(), Hyprlang::SConfigOptions{.throwAllErrors = true, .allowMissingConfig = true}) {
     ;
     configCurrentPath = configPath.empty() ? getMainConfigPath() : configPath;
     configHeadPath    = configCurrentPath;
