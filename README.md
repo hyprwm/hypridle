@@ -1,10 +1,12 @@
 # hypridle
+
 Hyprland's idle daemon
 
 ## Features
- - based on the `ext-idle-notify-v1` wayland protocol
- - support for dbus' loginctl commands (lock / unlock / before-sleep)
- - support for dbus' inhibit (used by e.g. firefox / steam)
+
+- based on the `ext-idle-notify-v1` wayland protocol
+- support for dbus' loginctl commands (lock / unlock / before-sleep)
+- support for dbus' inhibit (used by e.g. firefox / steam)
 
 ## Configuration
 
@@ -32,22 +34,25 @@ You can add as many listeners as you please. Omitting `on-timeout` or `on-resume
 will make those events ignored.
 
 ## Dependencies
- - wayland
- - wayland-protocols
- - hyprland-protocols
- - hyprlang >= 0.4.0
- - sdbus-c++
- - hyprwayland-scanner
+
+- wayland
+- wayland-protocols
+- hyprland-protocols
+- hyprlang >= 0.4.0
+- sdbus-c++
+- hyprwayland-scanner
 
 ## Building & Installation
 
 ### Building:
+
 ```sh
-cmake --no-warn-unused-cli -DCMAKE_BUILD_TYPE:STRING=Release -DCMAKE_INSTALL_PREFIX:PATH=/usr -S . -B ./build
+cmake --no-warn-unused-cli -DCMAKE_BUILD_TYPE:STRING=Release -DCMAKE_INSTALL_PREFIX:PATH=/usr/local -S . -B ./build
 cmake --build ./build --config Release --target all -j`nproc 2>/dev/null || getconf NPROCESSORS_CONF`
 ```
 
 ### Installation:
+
 ```sh
 sudo cmake --install build
 ```
@@ -56,10 +61,13 @@ sudo cmake --install build
 
 Hypridle should ideally be launched after logging in. This can be done by your compositor or by systemd.
 For example, for Hyprland, use the following in your `hyprland.conf`.
+
 ```hyprlang
 exec-once = hypridle
 ```
+
 If, instead, you want to have systemd do this for you, you'll just need to enable the service using
+
 ```sh
 systemctl --user enable --now hypridle.service
 ```
