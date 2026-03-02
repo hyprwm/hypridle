@@ -1,6 +1,8 @@
 {
   lib,
   inputs,
+  self,
+  ...
 }:
 let
   mkDate =
@@ -16,22 +18,24 @@ in
 {
   default = inputs.self.overlays.hypridle;
 
-  hypridle = lib.composeManyExtensions [
+  hypridle-with-deps = lib.composeManyExtensions [
     inputs.hyprland-protocols.overlays.default
     inputs.hyprlang.overlays.default
     inputs.hyprutils.overlays.default
     inputs.hyprwayland-scanner.overlays.default
-    (final: prev: {
-      hypridle = prev.callPackage ./default.nix {
-        stdenv = prev.gcc15Stdenv;
-        version =
-          version
-          + "+date="
-          + (mkDate (inputs.self.lastModifiedDate or "19700101"))
-          + "_"
-          + (inputs.self.shortRev or "dirty");
-        inherit (final) hyprlang;
-      };
-    })
+    self.overlays.hypridle
   ];
+
+  hypridle = final: prev: {
+    hypridle = prev.callPackage ./default.nix {
+      stdenv = prev.gcc15Stdenv;
+      version =
+        version
+        + "+date="
+        + (mkDate (inputs.self.lastModifiedDate or "19700101"))
+        + "_"
+        + (inputs.self.shortRev or "dirty");
+      inherit (final) hyprlang;
+    };
+  };
 }

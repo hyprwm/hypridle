@@ -46,12 +46,12 @@
         system:
         import nixpkgs {
           localSystem.system = system;
-          overlays = with self.overlays; [ default ];
+          overlays = with self.overlays; [ hypridle-with-deps ];
         }
       );
     in
     {
-      overlays = import ./nix/overlays.nix { inherit inputs lib; };
+      overlays = import ./nix/overlays.nix { inherit inputs lib self; };
 
       packages = eachSystem (system: {
         default = self.packages.${system}.hypridle;
