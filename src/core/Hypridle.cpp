@@ -2,7 +2,6 @@
 #include "Hypridle.hpp"
 #include "../helpers/Log.hpp"
 #include "../config/ConfigManager.hpp"
-#include "csignal"
 #include <sys/wait.h>
 #include <sys/poll.h>
 #include <sys/mman.h>
@@ -453,8 +452,8 @@ static void handleDbusBlockInhibitsPropertyChanged(sdbus::Message msg) {
 }
 
 static uint32_t handleDbusScreensaver(std::string app, std::string reason, uint32_t cookie, bool inhibit, const char* sender) {
-    std::string ownerID = sender;
-    bool cookieFound = false;
+    std::string ownerID     = sender;
+    bool        cookieFound = false;
 
     if (!inhibit) {
         Debug::log(TRACE, "Read uninhibit cookie: {}", cookie);
@@ -462,9 +461,9 @@ static uint32_t handleDbusScreensaver(std::string app, std::string reason, uint3
         if (COOKIE.cookie == 0) {
             Debug::log(WARN, "No cookie in uninhibit");
         } else {
-            app     = COOKIE.app;
-            reason  = COOKIE.reason;
-            ownerID = COOKIE.ownerID;
+            app         = COOKIE.app;
+            reason      = COOKIE.reason;
+            ownerID     = COOKIE.ownerID;
             cookieFound = true;
 
             if (!g_pHypridle->unregisterDbusInhibitCookie(COOKIE))
