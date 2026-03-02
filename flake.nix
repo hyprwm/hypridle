@@ -31,35 +31,40 @@
     };
   };
 
-  outputs = {
-    self,
-    nixpkgs,
-    systems,
-    ...
-  } @ inputs: let
-    inherit (nixpkgs) lib;
-    eachSystem = lib.genAttrs (import systems);
+  outputs =
+    {
+      self,
+      nixpkgs,
+      systems,
+      ...
+    }@inputs:
+    let
+      inherit (nixpkgs) lib;
+      eachSystem = lib.genAttrs (import systems);
 
-    pkgsFor = eachSystem (system:
-      import nixpkgs {
-        localSystem.system = system;
-        overlays = with self.overlays; [default];
+      pkgsFor = eachSystem (
+        system:
+        import nixpkgs {
+          localSystem.system = system;
+          overlays = with self.overlays; [ default ];
+        }
+      );
+    in
+    {
+      overlays = import ./nix/overlays.nix { inherit inputs lib; };
+
+      packages = eachSystem (system: {
+        default = self.packages.${system}.hypridle;
+        inherit (pkgsFor.${system}) hypridle;
       });
-  in {
-    overlays = import ./nix/overlays.nix {inherit inputs lib;};
 
-    packages = eachSystem (system: {
-      default = self.packages.${system}.hypridle;
-      inherit (pkgsFor.${system}) hypridle;
-    });
+      homeManagerModules = {
+        default = self.homeManagerModules.hypridle;
+        hypridle = builtins.throw "hypridle: the flake HM module has been removed. Use the module from Home Manager upstream.";
+      };
 
-    homeManagerModules = {
-      default = self.homeManagerModules.hypridle;
-      hypridle = builtins.throw "hypridle: the flake HM module has been removed. Use the module from Home Manager upstream.";
+      checks = eachSystem (system: self.packages.${system});
+
+      formatter = eachSystem (system: pkgsFor.${system}.nixfmt-tree);
     };
-
-    checks = eachSystem (system: self.packages.${system});
-
-    formatter = eachSystem (system: pkgsFor.${system}.alejandra);
-  };
 }
