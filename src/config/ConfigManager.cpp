@@ -6,19 +6,34 @@
 #include <glob.h>
 #include <cstring>
 
-static std::string getMainConfigPath() {
+static std::string getMainConfigPath(const std::string& overridePath = "") {
+    if (!overridePath.empty()) {
+        if (!std::filesystem::exists(overridePath)) {
+            throw std::runtime_error("Provided config path does not exist: " + overridePath);
+        }
+        return overridePath;
+    }
+
     static const auto paths = Hyprutils::Path::findConfig("hypridle");
-    if (paths.first.has_value())
+
+    if (paths.first.has_value()) {
         return paths.first.value();
-    else
-        throw std::runtime_error("Could not find config in HOME, XDG_CONFIG_HOME, XDG_CONFIG_DIRS or /etc/hypr.");
+    }
+
+    throw std::runtime_error(
+        "[ERR] Could not find hypridle.conf in:\n"
+        "   $HOME/.config/hypr, /etc/xdg/hypr, $XDG_CONFIG_HOME/hypr or any $XDG_CONFIG_DIRS/hypr directories\n"
+    );
 }
 
 CConfigManager::CConfigManager(std::string configPath) :
-    m_config(configPath.empty() ? getMainConfigPath().c_str() : configPath.c_str(), Hyprlang::SConfigOptions{.throwAllErrors = true, .allowMissingConfig = false}) {
-    ;
-    configCurrentPath = configPath.empty() ? getMainConfigPath() : configPath;
-    configHeadPath    = configCurrentPath;
+    m_config(getMainConfigPath(configPath).c_str(),
+             Hyprlang::SConfigOptions{.throwAllErrors = true, .allowMissingConfig = false})
+{
+    configCurrentPath = getMainConfigPath(configPath);
+    configHeadPath = configCurrentPath;
+
+    Debug::log(LOG, "Using config file: {}", configCurrentPath);
 }
 
 static Hyprlang::CParseResult handleSource(const char* c, const char* v) {
