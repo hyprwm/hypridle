@@ -5,11 +5,15 @@
 #include <filesystem>
 #include <glob.h>
 #include <cstring>
+#include <expected>
 
-static std::string getMainConfigPath(const std::string& overridePath = "") {
+static std::expected<std::string, std::error_code> getMainConfigPath(const std::string& overridePath = "") {
+    namespace fs = std::filesystem;
+
     if (!overridePath.empty()) {
-        if (!std::filesystem::exists(overridePath)) {
-            throw std::runtime_error("Provided config path does not exist: " + overridePath);
+        std::error_code ec;
+        if (!fs::exists(overridePath, ec)) {
+            return std::unexpected(std::make_error_code(std::errc::no_such_file_or_directory));
         }
         return overridePath;
     }
@@ -20,18 +24,23 @@ static std::string getMainConfigPath(const std::string& overridePath = "") {
         return paths.first.value();
     }
 
-    throw std::runtime_error(
-        "[ERR] Could not find hypridle.conf in:\n"
-        "   $HOME/.config/hypr, /etc/xdg/hypr, $XDG_CONFIG_HOME/hypr or any $XDG_CONFIG_DIRS/hypr directories\n"
-    );
+    return std::unexpected(std::make_error_code(std::errc::no_such_file_or_directory));
 }
 
 CConfigManager::CConfigManager(std::string configPath) :
-    m_config(getMainConfigPath(configPath).c_str(),
-             Hyprlang::SConfigOptions{.throwAllErrors = true, .allowMissingConfig = false})
+    /* allowMissingConfig = 'true' to avoid library-level exceptions during initialization.
+    Existence is guaranteed by the path check below. */
+    m_config(getMainConfigPath(configPath).value_or("").c_str(),
+             Hyprlang::SConfigOptions{.throwAllErrors = false, .allowMissingConfig = true})
 {
-    configCurrentPath = getMainConfigPath(configPath);
-    configHeadPath = configCurrentPath;
+    auto pathResult = getMainConfigPath(configPath);
+
+    if (!pathResult) {
+        return;
+    }
+
+    configCurrentPath = *pathResult;
+    configHeadPath    = configCurrentPath;
 
     Debug::log(LOG, "Using config file: {}", configCurrentPath);
 }
