@@ -269,16 +269,21 @@ void CHypridle::onIdled(SIdleListener* pListener) {
     }
 
     Debug::log(LOG, "Running {}", pListener->onTimeout);
+    pListener->onTimeoutFired = true;
     spawn(pListener->onTimeout);
 }
 
 void CHypridle::onResumed(SIdleListener* pListener) {
     Debug::log(LOG, "Resumed: rule {:x}", (uintptr_t)pListener);
     isIdled = false;
-    if (g_pHypridle->m_iInhibitLocks > 0 && !pListener->ignoreInhibit) {
-        Debug::log(LOG, "Ignoring from onResumed(), inhibit locks: {}", g_pHypridle->m_iInhibitLocks);
+
+    // If on-timeout never actually executed (was inhibited), skip on-resume too
+    if (!pListener->onTimeoutFired) {
+        Debug::log(LOG, "Skipping onResumed: onTimeout was inhibited for rule {:x}", (uintptr_t)pListener);
         return;
     }
+
+    pListener->onTimeoutFired = false;
 
     if (pListener->onRestore.empty()) {
         Debug::log(LOG, "Ignoring, onRestore is empty.");
