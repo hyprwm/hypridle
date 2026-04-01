@@ -12,17 +12,15 @@ static std::expected<std::string, std::error_code> getMainConfigPath(const std::
 
     if (!overridePath.empty()) {
         std::error_code ec;
-        if (!fs::exists(overridePath, ec)) {
+        if (!fs::exists(overridePath, ec))
             return std::unexpected(std::make_error_code(std::errc::no_such_file_or_directory));
-        }
         return overridePath;
     }
 
     static const auto paths = Hyprutils::Path::findConfig("hypridle");
 
-    if (paths.first.has_value()) {
+    if (paths.first.has_value())
         return paths.first.value();
-    }
 
     return std::unexpected(std::make_error_code(std::errc::no_such_file_or_directory));
 }
@@ -35,9 +33,8 @@ CConfigManager::CConfigManager(std::string configPath) :
 {
     auto pathResult = getMainConfigPath(configPath);
 
-    if (!pathResult) {
+    if (!pathResult)
         return;
-    }
 
     configCurrentPath = *pathResult;
     configHeadPath    = configCurrentPath;
@@ -134,9 +131,9 @@ std::vector<CConfigManager::STimeoutRule> CConfigManager::getRules() {
 }
 
 std::optional<std::string> CConfigManager::handleSource(const std::string& command, const std::string& rawpath) {
-    if (rawpath.length() < 2) {
+    if (rawpath.length() < 2)
         return "source path " + rawpath + " bogus!";
-    }
+
     std::unique_ptr<glob_t, void (*)(glob_t*)> glob_buf{new glob_t, [](glob_t* g) { globfree(g); }};
     memset(glob_buf.get(), 0, sizeof(glob_t));
 
