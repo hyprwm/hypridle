@@ -14,10 +14,12 @@ class CConfigManager {
     void init();
 
     struct STimeoutRule {
-        uint64_t    timeout       = 0;
-        std::string onTimeout     = "";
-        std::string onResume      = "";
-        bool        ignoreInhibit = false;
+        uint64_t    timeout        = 0;
+        std::string onTimeout      = "";
+        std::string onResume       = "";
+        bool        ignoreInhibit  = false;
+        std::string conditionCmd   = "";
+        int64_t     conditionRetry = 30;
     };
 
     std::vector<STimeoutRule>  getRules();
