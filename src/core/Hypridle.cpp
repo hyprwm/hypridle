@@ -65,9 +65,11 @@ void CHypridle::run() {
     for (size_t i = 0; i < RULES.size(); ++i) {
         auto&       l   = m_sWaylandIdleState.listeners[i];
         const auto& r   = RULES[i];
-        l.onRestore     = r.onResume;
-        l.onTimeout     = r.onTimeout;
-        l.ignoreInhibit = r.ignoreInhibit;
+        l.onRestore      = r.onResume;
+        l.onTimeout      = r.onTimeout;
+        l.ignoreInhibit  = r.ignoreInhibit;
+        l.conditionCmd   = r.conditionCmd;
+        l.conditionRetry = r.conditionRetry;
 
         if (*IGNOREWAYLANDINHIBIT || r.ignoreInhibit)
             l.notification =
@@ -142,6 +144,45 @@ void CHypridle::run() {
     enterEventLoop();
 }
 
+static int64_t nowMonotonic() {
+    return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+
+static bool runConditionCmd(const std::string& cmd) {
+    Debug::log(LOG, "Running condition_cmd: {}", cmd);
+
+    pid_t pid = fork();
+    if (pid < 0) {
+        Debug::log(ERR, "Failed to fork for condition_cmd");
+        return false;
+    }
+
+    if (pid == 0) {
+        execl("/bin/sh", "/bin/sh", "-c", cmd.c_str(), nullptr);
+        _exit(127);
+    }
+
+    // Wait with 5s timeout
+    for (int i = 0; i < 50; i++) {
+        int status = 0;
+        pid_t ret = waitpid(pid, &status, WNOHANG);
+        if (ret > 0) {
+            int exitCode = WIFEXITED(status) ? WEXITSTATUS(status) : 1;
+            Debug::log(LOG, "condition_cmd exited with {}", exitCode);
+            return exitCode == 0;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+
+    // Timeout — kill and return false
+    Debug::log(WARN, "condition_cmd timed out after 5s, killing");
+    kill(pid, SIGKILL);
+    waitpid(pid, nullptr, 0);
+    return false;
+}
+
+static void spawn(const std::string& args);
+
 void CHypridle::enterEventLoop() {
 
     nfds_t pollfdsCount = m_sDBUSState.screenSaverServiceConnection ? 3 : 2;
@@ -196,7 +237,7 @@ void CHypridle::enterEventLoop() {
 
         std::unique_lock lk(m_sEventLoopInternals.loopMutex);
         if (!m_sEventLoopInternals.shouldProcess) // avoid a lock if a thread managed to request something already since we .unlock()ed
-            m_sEventLoopInternals.loopSignal.wait(lk, [this] { return m_sEventLoopInternals.shouldProcess == true; }); // wait for events
+            m_sEventLoopInternals.loopSignal.wait_for(lk, std::chrono::seconds(5), [this] { return m_sEventLoopInternals.shouldProcess == true; }); // wait for events or timeout (for condition_cmd retries)
 
         m_sEventLoopInternals.loopRequestMutex.lock(); // lock incoming events
 
@@ -238,6 +279,24 @@ void CHypridle::enterEventLoop() {
             ret = wl_display_dispatch_pending(m_sWaylandState.display);
             wl_display_flush(m_sWaylandState.display);
         } while (ret > 0);
+
+        // Check condition_cmd retries for pending listeners
+        const auto now = nowMonotonic();
+        for (auto& l : m_sWaylandIdleState.listeners) {
+            if (!l.conditionPending || now < l.conditionRetryAt)
+                continue;
+
+            Debug::log(LOG, "Retrying condition_cmd for rule {:x}", (uintptr_t)&l);
+            if (runConditionCmd(l.conditionCmd)) {
+                l.conditionPending = false;
+                l.onTimeoutFired = true;
+                Debug::log(LOG, "Condition met, running {}", l.onTimeout);
+                spawn(l.onTimeout);
+            } else {
+                l.conditionRetryAt = now + l.conditionRetry;
+                Debug::log(LOG, "Condition still not met, retrying in {}s", l.conditionRetry);
+            }
+        }
     }
 
     Debug::log(ERR, "[core] Terminated");
@@ -268,6 +327,16 @@ void CHypridle::onIdled(SIdleListener* pListener) {
         return;
     }
 
+    // Check condition_cmd before firing on-timeout
+    if (!pListener->conditionCmd.empty()) {
+        if (!runConditionCmd(pListener->conditionCmd)) {
+            Debug::log(LOG, "condition_cmd blocked on-timeout, retrying in {}s", pListener->conditionRetry);
+            pListener->conditionPending = true;
+            pListener->conditionRetryAt = nowMonotonic() + pListener->conditionRetry;
+            return;
+        }
+    }
+
     Debug::log(LOG, "Running {}", pListener->onTimeout);
     pListener->onTimeoutFired = true;
     spawn(pListener->onTimeout);
@@ -276,6 +345,7 @@ void CHypridle::onIdled(SIdleListener* pListener) {
 void CHypridle::onResumed(SIdleListener* pListener) {
     Debug::log(LOG, "Resumed: rule {:x}", (uintptr_t)pListener);
     isIdled = false;
+    pListener->conditionPending = false;
 
     // If on-timeout never actually executed (was inhibited), skip on-resume too
     if (!pListener->onTimeoutFired) {
