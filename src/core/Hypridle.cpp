@@ -237,7 +237,7 @@ void CHypridle::enterEventLoop() {
 
         std::unique_lock lk(m_sEventLoopInternals.loopMutex);
         if (!m_sEventLoopInternals.shouldProcess) // avoid a lock if a thread managed to request something already since we .unlock()ed
-            m_sEventLoopInternals.loopSignal.wait(lk, [this] { return m_sEventLoopInternals.shouldProcess == true; }); // wait for events
+            m_sEventLoopInternals.loopSignal.wait_for(lk, std::chrono::seconds(5), [this] { return m_sEventLoopInternals.shouldProcess == true; }); // wait for events or timeout (for condition_cmd retries)
 
         m_sEventLoopInternals.loopRequestMutex.lock(); // lock incoming events
 
