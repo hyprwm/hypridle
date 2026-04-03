@@ -5,6 +5,7 @@
 #include <sdbus-c++/sdbus-c++.h>
 #include <hyprutils/os/FileDescriptor.hpp>
 #include <condition_variable>
+#include <atomic>
 
 #include "wayland.hpp"
 #include "ext-idle-notify-v1.hpp"
@@ -17,11 +18,13 @@ class CHypridle {
     CHypridle();
 
     struct SIdleListener {
-        SP<CCExtIdleNotificationV1> notification     = nullptr;
-        std::string                 onTimeout        = "";
-        std::string                 onRestore        = "";
-        bool                        ignoreInhibit    = false;
-        bool                        onTimeoutFired   = false;
+        SP<CCExtIdleNotificationV1> notification   = nullptr;
+        std::string                 onTimeout      = "";
+        std::string                 onRestore      = "";
+        bool                        ignoreInhibit  = false;
+        bool                        onTimeoutFired = false;
+        bool                        afterLock      = false;
+        bool                        beforeLock     = false;
     };
 
     struct SDbusInhibitCookie {
@@ -29,36 +32,40 @@ class CHypridle {
         std::string app, reason, ownerID;
     };
 
-    void               run();
+    void                        run();
 
-    void               onGlobal(void* data, struct wl_registry* registry, uint32_t name, const char* interface, uint32_t version);
-    void               onGlobalRemoved(void* data, struct wl_registry* registry, uint32_t name);
+    void                        onGlobal(void* data, struct wl_registry* registry, uint32_t name, const char* interface, uint32_t version);
+    void                        onGlobalRemoved(void* data, struct wl_registry* registry, uint32_t name);
 
-    void               onIdled(SIdleListener*);
-    void               onResumed(SIdleListener*);
+    void                        onIdled(SIdleListener*);
+    void                        onResumed(SIdleListener*);
 
-    void               onInhibit(bool lock);
+    void                        onInhibit(bool lock);
 
-    void               onLocked();
-    void               onUnlocked();
+    void                        onLocked();
+    void                        onUnlocked();
 
-    SDbusInhibitCookie getDbusInhibitCookie(uint32_t cookie);
-    void               registerDbusInhibitCookie(SDbusInhibitCookie& cookie);
-    bool               unregisterDbusInhibitCookie(const SDbusInhibitCookie& cookie);
-    size_t             unregisterDbusInhibitCookies(const std::string& ownerID);
+    SP<CCExtIdleNotificationV1> createIdleNotification(uint32_t timeoutMs, bool ignoreInhibit, SIdleListener* listener);
 
-    void               handleInhibitOnDbusSleep(bool toSleep);
-    void               inhibitSleep();
-    void               uninhibitSleep();
+    SDbusInhibitCookie          getDbusInhibitCookie(uint32_t cookie);
+    void                        registerDbusInhibitCookie(SDbusInhibitCookie& cookie);
+    bool                        unregisterDbusInhibitCookie(const SDbusInhibitCookie& cookie);
+    size_t                      unregisterDbusInhibitCookies(const std::string& ownerID);
+
+    void                        handleInhibitOnDbusSleep(bool toSleep);
+    void                        inhibitSleep();
+    void                        uninhibitSleep();
+
+    void                        fireBeforeLockListeners(bool toSleep);
 
   private:
-    void    setupDBUS();
-    void    enterEventLoop();
+    void                 setupDBUS();
+    void                 enterEventLoop();
 
-    bool    m_bTerminate    = false;
-    bool    isIdled         = false;
-    bool    m_isLocked      = false;
-    int64_t m_iInhibitLocks = 0;
+    std::atomic<bool>    m_bTerminate    = false;
+    std::atomic<bool>    isIdled         = false;
+    bool                 m_isLocked      = false;
+    std::atomic<int64_t> m_iInhibitLocks = 0;
 
     enum {
         SLEEP_INHIBIT_NONE,

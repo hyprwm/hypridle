@@ -18,6 +18,8 @@ class CConfigManager {
         std::string onTimeout     = "";
         std::string onResume      = "";
         bool        ignoreInhibit = false;
+        bool        afterLock     = false;
+        bool        beforeLock    = false;
     };
 
     std::vector<STimeoutRule>  getRules();
