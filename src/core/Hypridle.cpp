@@ -68,18 +68,11 @@ void CHypridle::run() {
         l.onRestore     = r.onResume;
         l.onTimeout     = r.onTimeout;
         l.ignoreInhibit = r.ignoreInhibit;
+        l.afterLock     = r.afterLock;
+        l.beforeLock    = r.beforeLock;
 
-        if (*IGNOREWAYLANDINHIBIT || r.ignoreInhibit)
-            l.notification =
-                makeShared<CCExtIdleNotificationV1>(m_sWaylandIdleState.notifier->sendGetInputIdleNotification(r.timeout * 1000 /* ms */, m_sWaylandState.seat->resource()));
-        else
-            l.notification =
-                makeShared<CCExtIdleNotificationV1>(m_sWaylandIdleState.notifier->sendGetIdleNotification(r.timeout * 1000 /* ms */, m_sWaylandState.seat->resource()));
-
-        l.notification->setData(&m_sWaylandIdleState.listeners[i]);
-
-        l.notification->setIdled([this](CCExtIdleNotificationV1* n) { onIdled((CHypridle::SIdleListener*)n->data()); });
-        l.notification->setResumed([this](CCExtIdleNotificationV1* n) { onResumed((CHypridle::SIdleListener*)n->data()); });
+        if (!r.afterLock && !r.beforeLock)
+            l.notification = createIdleNotification(r.timeout * 1000 /* ms */, *IGNOREWAYLANDINHIBIT || r.ignoreInhibit, &m_sWaylandIdleState.listeners[i]);
     }
 
     wl_display_roundtrip(m_sWaylandState.display);
@@ -161,20 +154,31 @@ void CHypridle::enterEventLoop() {
         },
     };
 
-    std::thread pollThr([this, &pollfds, &pollfdsCount]() {
+    nfds_t                       threadPollfdsCount = pollfdsCount;
+    std::thread                  pollThr([this, &pollfds, threadPollfdsCount]() {
         while (1) {
-            int ret = poll(pollfds, pollfdsCount, 5000 /* 5 seconds, reasonable. It's because we might need to terminate */);
+            int ret = poll(pollfds, threadPollfdsCount, 5000 /* 5 seconds, reasonable. It's because we might need to terminate */);
             if (ret < 0) {
                 Debug::log(CRIT, "[core] Polling fds failed with {}", errno);
                 m_bTerminate = true;
-                exit(1);
+                {
+                    std::lock_guard<std::mutex> lg(m_sEventLoopInternals.loopRequestMutex);
+                    m_sEventLoopInternals.shouldProcess = true;
+                    m_sEventLoopInternals.loopSignal.notify_all();
+                }
+                return;
             }
 
-            for (size_t i = 0; i < pollfdsCount; ++i) {
+            for (size_t i = 0; i < threadPollfdsCount; ++i) {
                 if (pollfds[i].revents & POLLHUP) {
                     Debug::log(CRIT, "[core] Disconnected from pollfd id {}", i);
                     m_bTerminate = true;
-                    exit(1);
+                    {
+                        std::lock_guard<std::mutex> lg(m_sEventLoopInternals.loopRequestMutex);
+                        m_sEventLoopInternals.shouldProcess = true;
+                        m_sEventLoopInternals.loopSignal.notify_all();
+                    }
+                    return;
                 }
             }
 
@@ -190,15 +194,16 @@ void CHypridle::enterEventLoop() {
         }
     });
 
+    std::unique_lock<std::mutex> requestLock(m_sEventLoopInternals.loopRequestMutex);
+
     while (1) { // dbus events
-        // wait for being awakened
-        m_sEventLoopInternals.loopRequestMutex.unlock(); // unlock, we are ready to take events
+        requestLock.unlock();
 
         std::unique_lock lk(m_sEventLoopInternals.loopMutex);
         if (!m_sEventLoopInternals.shouldProcess) // avoid a lock if a thread managed to request something already since we .unlock()ed
             m_sEventLoopInternals.loopSignal.wait(lk, [this] { return m_sEventLoopInternals.shouldProcess == true; }); // wait for events
 
-        m_sEventLoopInternals.loopRequestMutex.lock(); // lock incoming events
+        requestLock.lock();
 
         if (m_bTerminate)
             break;
@@ -259,7 +264,7 @@ void CHypridle::onIdled(SIdleListener* pListener) {
     Debug::log(LOG, "Idled: rule {:x}", (uintptr_t)pListener);
     isIdled = true;
     if (g_pHypridle->m_iInhibitLocks > 0 && !pListener->ignoreInhibit) {
-        Debug::log(LOG, "Ignoring from onIdled(), inhibit locks: {}", g_pHypridle->m_iInhibitLocks);
+        Debug::log(LOG, "Ignoring from onIdled(), inhibit locks: {}", g_pHypridle->m_iInhibitLocks.load());
         return;
     }
 
@@ -294,11 +299,25 @@ void CHypridle::onResumed(SIdleListener* pListener) {
     spawn(pListener->onRestore);
 }
 
+SP<CCExtIdleNotificationV1> CHypridle::createIdleNotification(uint32_t timeoutMs, bool ignoreInhibit, SIdleListener* listener) {
+    SP<CCExtIdleNotificationV1> notification;
+    if (ignoreInhibit)
+        notification = makeShared<CCExtIdleNotificationV1>(m_sWaylandIdleState.notifier->sendGetInputIdleNotification(timeoutMs, m_sWaylandState.seat->resource()));
+    else
+        notification = makeShared<CCExtIdleNotificationV1>(m_sWaylandIdleState.notifier->sendGetIdleNotification(timeoutMs, m_sWaylandState.seat->resource()));
+
+    notification->setData(listener);
+    notification->setIdled([this](CCExtIdleNotificationV1* n) { onIdled((SIdleListener*)n->data()); });
+    notification->setResumed([this](CCExtIdleNotificationV1* n) { onResumed((SIdleListener*)n->data()); });
+
+    return notification;
+}
+
 void CHypridle::onInhibit(bool lock) {
     m_iInhibitLocks += lock ? 1 : -1;
 
     if (m_iInhibitLocks < 0) {
-        Debug::log(WARN, "BUG THIS: inhibit locks < 0: {}", m_iInhibitLocks);
+        Debug::log(WARN, "BUG THIS: inhibit locks < 0: {}", m_iInhibitLocks.load());
         m_iInhibitLocks = 0;
     }
 
@@ -310,28 +329,29 @@ void CHypridle::onInhibit(bool lock) {
             auto&       l = m_sWaylandIdleState.listeners[i];
             const auto& r = RULES[i];
 
+            if (r.afterLock || r.beforeLock)
+                continue;
+
             l.notification->sendDestroy();
 
-            if (*IGNOREWAYLANDINHIBIT || r.ignoreInhibit)
-                l.notification =
-                    makeShared<CCExtIdleNotificationV1>(m_sWaylandIdleState.notifier->sendGetInputIdleNotification(r.timeout * 1000 /* ms */, m_sWaylandState.seat->resource()));
-            else
-                l.notification =
-                    makeShared<CCExtIdleNotificationV1>(m_sWaylandIdleState.notifier->sendGetIdleNotification(r.timeout * 1000 /* ms */, m_sWaylandState.seat->resource()));
-
-            l.notification->setData(&m_sWaylandIdleState.listeners[i]);
-
-            l.notification->setIdled([this](CCExtIdleNotificationV1* n) { onIdled((CHypridle::SIdleListener*)n->data()); });
-            l.notification->setResumed([this](CCExtIdleNotificationV1* n) { onResumed((CHypridle::SIdleListener*)n->data()); });
+            l.notification = createIdleNotification(r.timeout * 1000 /* ms */, *IGNOREWAYLANDINHIBIT || r.ignoreInhibit, &m_sWaylandIdleState.listeners[i]);
         }
     }
 
-    Debug::log(LOG, "Inhibit locks: {}", m_iInhibitLocks);
+    Debug::log(LOG, "Inhibit locks: {}", m_iInhibitLocks.load());
 }
 
 void CHypridle::onLocked() {
     Debug::log(LOG, "Wayland session got locked");
     m_isLocked = true;
+
+    for (auto& l : m_sWaylandIdleState.listeners) {
+        if (l.afterLock && !l.onTimeout.empty()) {
+            Debug::log(LOG, "Running after_lock for rule {:x}", (uintptr_t)&l);
+            l.onTimeoutFired = true;
+            spawn(l.onTimeout);
+        }
+    }
 
     static const auto LOCKCMD = g_pConfigManager->getValue<Hyprlang::STRING>("general:on_lock_cmd");
     if (!std::string{*LOCKCMD}.empty())
@@ -345,12 +365,41 @@ void CHypridle::onUnlocked() {
     Debug::log(LOG, "Wayland session got unlocked");
     m_isLocked = false;
 
+    for (auto& l : m_sWaylandIdleState.listeners) {
+        if (l.afterLock && l.onTimeoutFired && !l.onRestore.empty()) {
+            Debug::log(LOG, "Running after_lock restore for rule {:x}", (uintptr_t)&l);
+            l.onTimeoutFired = false;
+            spawn(l.onRestore);
+        }
+    }
+
     if (m_inhibitSleepBehavior == SLEEP_INHIBIT_LOCK_NOTIFY)
         inhibitSleep();
 
     static const auto UNLOCKCMD = g_pConfigManager->getValue<Hyprlang::STRING>("general:on_unlock_cmd");
     if (!std::string{*UNLOCKCMD}.empty())
         spawn(*UNLOCKCMD);
+}
+
+void CHypridle::fireBeforeLockListeners(bool toSleep) {
+    for (auto& l : m_sWaylandIdleState.listeners) {
+        if (!l.beforeLock)
+            continue;
+
+        if (toSleep) {
+            if (!l.onTimeout.empty()) {
+                Debug::log(LOG, "Running before_lock for rule {:x}", (uintptr_t)&l);
+                l.onTimeoutFired = true;
+                spawn(l.onTimeout);
+            }
+        } else {
+            if (l.onTimeoutFired && !l.onRestore.empty()) {
+                Debug::log(LOG, "Running before_lock restore for rule {:x}", (uintptr_t)&l);
+                l.onTimeoutFired = false;
+                spawn(l.onRestore);
+            }
+        }
+    }
 }
 
 CHypridle::SDbusInhibitCookie CHypridle::getDbusInhibitCookie(uint32_t cookie) {
@@ -419,6 +468,12 @@ static void handleDbusSleep(sdbus::Message msg) {
 
     Debug::log(LOG, "Got PrepareForSleep from dbus with sleep {}", toSleep);
 
+    if (toSleep) {
+        g_pHypridle->fireBeforeLockListeners(true);
+    } else {
+        g_pHypridle->fireBeforeLockListeners(false);
+    }
+
     std::string cmd = toSleep ? *SLEEPCMD : *AFTERSLEEPCMD;
 
     if (!toSleep)
@@ -458,8 +513,8 @@ static void handleDbusBlockInhibitsPropertyChanged(sdbus::Message msg) {
 }
 
 static uint32_t handleDbusScreensaver(std::string app, std::string reason, uint32_t cookie, bool inhibit, const char* sender) {
-    std::string ownerID = sender;
-    bool cookieFound = false;
+    std::string ownerID     = sender;
+    bool        cookieFound = false;
 
     if (!inhibit) {
         Debug::log(TRACE, "Read uninhibit cookie: {}", cookie);
@@ -467,9 +522,9 @@ static uint32_t handleDbusScreensaver(std::string app, std::string reason, uint3
         if (COOKIE.cookie == 0) {
             Debug::log(WARN, "No cookie in uninhibit");
         } else {
-            app     = COOKIE.app;
-            reason  = COOKIE.reason;
-            ownerID = COOKIE.ownerID;
+            app         = COOKIE.app;
+            reason      = COOKIE.reason;
+            ownerID     = COOKIE.ownerID;
             cookieFound = true;
 
             if (!g_pHypridle->unregisterDbusInhibitCookie(COOKIE))
@@ -493,7 +548,10 @@ static uint32_t handleDbusScreensaver(std::string app, std::string reason, uint3
 
         g_pHypridle->registerDbusInhibitCookie(cookie);
 
-        return cookieID++;
+        uint32_t current = cookieID++;
+        if (cookieID == 0)
+            cookieID = 1337;
+        return current;
     }
 
     return 0;
