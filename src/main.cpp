@@ -2,6 +2,7 @@
 #include "config/ConfigManager.hpp"
 #include "core/Hypridle.hpp"
 #include "helpers/Log.hpp"
+#include <memory>
 
 int main(int argc, char** argv, char** envp) {
     std::string configPath;
@@ -51,16 +52,21 @@ int main(int argc, char** argv, char** envp) {
         }
     }
 
-    try {
-        g_pConfigManager = std::make_unique<CConfigManager>(configPath);
-        g_pConfigManager->init();
-    } catch (const char* err) {
-        Debug::log(CRIT, "ConfigManager threw: {}", err);
-        std::string strerr = err;
-        if (strerr.contains("File does not exist"))
-            Debug::log(NONE, "           Make sure you have a config.");
+    g_pConfigManager = std::make_unique<CConfigManager>(configPath);
+
+    if (g_pConfigManager->configCurrentPath.empty()) {
+        if (!configPath.empty()) {
+            Debug::log(CRIT, "ConfigManager: Specified file not found: {}\n", configPath);
+        } else {
+            Debug::log(CRIT, "ConfigManager: No hypridle.conf file found in:");
+            Debug::log(NONE, "    $XDG_CONFIG_HOME/hypr/, ~/.config/hypr/, [XDG_CONFIG_DIRS]/hypr/, /etc/xdg/hypr/\n");
+            Debug::log(NONE, "Create a config or specify one manually:");
+            Debug::log(NONE, "    hypridle -c /path/to/conf");
+        }
         return 1;
     }
+
+    g_pConfigManager->init();
 
     g_pHypridle = std::make_unique<CHypridle>();
     g_pHypridle->run();

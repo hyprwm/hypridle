@@ -5,20 +5,41 @@
 #include <filesystem>
 #include <glob.h>
 #include <cstring>
+#include <expected>
 
-static std::string getMainConfigPath() {
+static std::expected<std::string, std::error_code> getMainConfigPath(const std::string& overridePath = "") {
+    namespace fs = std::filesystem;
+
+    if (!overridePath.empty()) {
+        std::error_code ec;
+        if (!fs::exists(overridePath, ec))
+            return std::unexpected(std::make_error_code(std::errc::no_such_file_or_directory));
+        return overridePath;
+    }
+
     static const auto paths = Hyprutils::Path::findConfig("hypridle");
+
     if (paths.first.has_value())
         return paths.first.value();
-    else
-        throw std::runtime_error("Could not find config in HOME, XDG_CONFIG_HOME, XDG_CONFIG_DIRS or /etc/hypr.");
+
+    return std::unexpected(std::make_error_code(std::errc::no_such_file_or_directory));
 }
 
 CConfigManager::CConfigManager(std::string configPath) :
-    m_config(configPath.empty() ? getMainConfigPath().c_str() : configPath.c_str(), Hyprlang::SConfigOptions{.throwAllErrors = true, .allowMissingConfig = false}) {
-    ;
-    configCurrentPath = configPath.empty() ? getMainConfigPath() : configPath;
+    /* allowMissingConfig = 'true' to avoid library-level exceptions during initialization.
+    Existence is guaranteed by the path check below. */
+    m_config(getMainConfigPath(configPath).value_or("").c_str(),
+             Hyprlang::SConfigOptions{.throwAllErrors = false, .allowMissingConfig = true})
+{
+    auto pathResult = getMainConfigPath(configPath);
+
+    if (!pathResult)
+        return;
+
+    configCurrentPath = *pathResult;
     configHeadPath    = configCurrentPath;
+
+    Debug::log(LOG, "Using config file: {}", configCurrentPath);
 }
 
 static Hyprlang::CParseResult handleSource(const char* c, const char* v) {
@@ -110,9 +131,9 @@ std::vector<CConfigManager::STimeoutRule> CConfigManager::getRules() {
 }
 
 std::optional<std::string> CConfigManager::handleSource(const std::string& command, const std::string& rawpath) {
-    if (rawpath.length() < 2) {
+    if (rawpath.length() < 2)
         return "source path " + rawpath + " bogus!";
-    }
+
     std::unique_ptr<glob_t, void (*)(glob_t*)> glob_buf{new glob_t, [](glob_t* g) { globfree(g); }};
     memset(glob_buf.get(), 0, sizeof(glob_t));
 
