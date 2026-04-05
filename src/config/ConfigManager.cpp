@@ -60,6 +60,8 @@ void CConfigManager::init() {
     m_config.addSpecialConfigValue("listener", "on-timeout", Hyprlang::STRING{""});
     m_config.addSpecialConfigValue("listener", "on-resume", Hyprlang::STRING{""});
     m_config.addSpecialConfigValue("listener", "ignore_inhibit", Hyprlang::INT{0});
+    m_config.addSpecialConfigValue("listener", "after_lock", Hyprlang::INT{0});
+    m_config.addSpecialConfigValue("listener", "before_lock", Hyprlang::INT{0});
 
     m_config.addConfigValue("general:lock_cmd", Hyprlang::STRING{""});
     m_config.addConfigValue("general:unlock_cmd", Hyprlang::STRING{""});
@@ -109,8 +111,20 @@ Hyprlang::CParseResult CConfigManager::postParse() {
         rule.onResume  = std::any_cast<Hyprlang::STRING>(m_config.getSpecialConfigValue("listener", "on-resume", k.c_str()));
 
         rule.ignoreInhibit = std::any_cast<Hyprlang::INT>(m_config.getSpecialConfigValue("listener", "ignore_inhibit", k.c_str()));
+        rule.afterLock     = std::any_cast<Hyprlang::INT>(m_config.getSpecialConfigValue("listener", "after_lock", k.c_str()));
+        rule.beforeLock    = std::any_cast<Hyprlang::INT>(m_config.getSpecialConfigValue("listener", "before_lock", k.c_str()));
 
-        if (timeout == -1) {
+        if (rule.afterLock && rule.beforeLock) {
+            result.setError("A listener cannot have both after_lock and before_lock set");
+            continue;
+        }
+
+        if ((rule.afterLock || rule.beforeLock) && timeout != -1 && timeout > 0) {
+            result.setError("A listener cannot have both timeout and after_lock/before_lock set");
+            continue;
+        }
+
+        if (!rule.afterLock && !rule.beforeLock && timeout == -1) {
             result.setError("Category has a missing timeout setting");
             continue;
         }
@@ -119,8 +133,13 @@ Hyprlang::CParseResult CConfigManager::postParse() {
     }
 
     for (auto& r : m_vRules) {
-        Debug::log(LOG, "Registered timeout rule for {}s:\n      on-timeout: {}\n      on-resume: {}\n      ignore_inhibit: {}", r.timeout, r.onTimeout, r.onResume,
-                   r.ignoreInhibit);
+        if (r.afterLock)
+            Debug::log(LOG, "Registered after_lock rule:\n      on-timeout: {}\n      on-resume: {}", r.onTimeout, r.onResume);
+        else if (r.beforeLock)
+            Debug::log(LOG, "Registered before_lock rule:\n      on-timeout: {}\n      on-resume: {}", r.onTimeout, r.onResume);
+        else
+            Debug::log(LOG, "Registered timeout rule for {}s:\n      on-timeout: {}\n      on-resume: {}\n      ignore_inhibit: {}", r.timeout, r.onTimeout, r.onResume,
+                       r.ignoreInhibit);
     }
 
     return result;
