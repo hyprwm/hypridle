@@ -25,8 +25,8 @@ listener {
     timeout = 500                            # in seconds
     on-timeout = notify-send "You are idle!" # command to run when timeout has passed
     on-resume = notify-send "Welcome back!"  # command to run when activity is detected after timeout has fired.
-    condition_cmd =                          # if set, run this command before on-timeout. Exit 0 = proceed, non-zero = defer
-    condition_retry = 30                     # retry interval in seconds when condition_cmd defers (default: 30)
+    # condition_cmd =                        # if set, run this command before on-timeout. Exit 0 = proceed, non-zero = defer
+    # condition_retry = 30                   # retry interval in seconds when condition_cmd defers (default: 30)
 }
 ```
 
