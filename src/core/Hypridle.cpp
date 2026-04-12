@@ -330,9 +330,13 @@ void CHypridle::onIdled(SIdleListener* pListener) {
     // Check condition_cmd before firing on-timeout
     if (!pListener->conditionCmd.empty()) {
         if (!runConditionCmd(pListener->conditionCmd)) {
-            Debug::log(LOG, "condition_cmd blocked on-timeout, retrying in {}s", pListener->conditionRetry);
-            pListener->conditionPending = true;
-            pListener->conditionRetryAt = nowMonotonic() + pListener->conditionRetry;
+            if (pListener->conditionRetry > 0) {
+                Debug::log(LOG, "condition_cmd blocked on-timeout, retrying in {}s", pListener->conditionRetry);
+                pListener->conditionPending = true;
+                pListener->conditionRetryAt = nowMonotonic() + pListener->conditionRetry;
+            } else {
+                Debug::log(LOG, "condition_cmd blocked on-timeout, no retry configured");
+            }
             return;
         }
     }

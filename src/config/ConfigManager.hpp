@@ -19,7 +19,7 @@ class CConfigManager {
         std::string onResume       = "";
         bool        ignoreInhibit  = false;
         std::string conditionCmd   = "";
-        int64_t     conditionRetry = 30;
+        int64_t     conditionRetry = 0;
     };
 
     std::vector<STimeoutRule>  getRules();

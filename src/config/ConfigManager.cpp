@@ -40,7 +40,7 @@ void CConfigManager::init() {
     m_config.addSpecialConfigValue("listener", "on-resume", Hyprlang::STRING{""});
     m_config.addSpecialConfigValue("listener", "ignore_inhibit", Hyprlang::INT{0});
     m_config.addSpecialConfigValue("listener", "condition_cmd", Hyprlang::STRING{""});
-    m_config.addSpecialConfigValue("listener", "condition_retry", Hyprlang::INT{30});
+    m_config.addSpecialConfigValue("listener", "condition_retry", Hyprlang::INT{0});
 
     m_config.addConfigValue("general:lock_cmd", Hyprlang::STRING{""});
     m_config.addConfigValue("general:unlock_cmd", Hyprlang::STRING{""});
