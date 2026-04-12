@@ -23,7 +23,7 @@ class CHypridle {
         bool                        ignoreInhibit     = false;
         bool                        onTimeoutFired    = false;
         std::string                 conditionCmd      = "";
-        int64_t                     conditionRetry    = 30;
+        int64_t                     conditionRetry    = 0;
         bool                        conditionPending  = false;
         int64_t                     conditionRetryAt  = 0;
     };
