@@ -349,7 +349,18 @@ void CHypridle::onIdled(SIdleListener* pListener) {
 void CHypridle::onResumed(SIdleListener* pListener) {
     Debug::log(LOG, "Resumed: rule {:x}", (uintptr_t)pListener);
     isIdled = false;
-    pListener->conditionPending = false;
+
+    // Any input means the user is no longer idle for *any* rule, so cancel all
+    // pending condition retries, not just this listener's. Per-listener clearing
+    // is insufficient: onInhibit() destroys and recreates idle notifications when
+    // the inhibit count drops to 0 while idle (e.g. a media player toggling the
+    // screensaver inhibit). That orphans a long-timeout rule's pending retry --
+    // its old notification is gone, and the recreated one won't fire resume until
+    // a fresh full timeout elapses, which never happens if the user stays active.
+    // The retry then waits on conditionPending alone and fires when the condition
+    // finally clears, despite continuous input. Clearing all on any resume fixes it.
+    for (auto& l : m_sWaylandIdleState.listeners)
+        l.conditionPending = false;
 
     // If on-timeout never actually executed (was inhibited), skip on-resume too
     if (!pListener->onTimeoutFired) {
