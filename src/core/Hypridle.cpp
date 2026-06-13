@@ -151,34 +151,15 @@ static int64_t nowMonotonic() {
 static bool runConditionCmd(const std::string& cmd) {
     Debug::log(LOG, "Running condition_cmd: {}", cmd);
 
-    pid_t pid = fork();
-    if (pid < 0) {
-        Debug::log(ERR, "Failed to fork for condition_cmd");
+    Hyprutils::OS::CProcess proc("/bin/sh", {"-c", cmd});
+    if (!proc.runSync()) {
+        Debug::log(ERR, "Failed to run condition_cmd: {}", cmd);
         return false;
     }
 
-    if (pid == 0) {
-        execl("/bin/sh", "/bin/sh", "-c", cmd.c_str(), nullptr);
-        _exit(127);
-    }
-
-    // Wait with 5s timeout
-    for (int i = 0; i < 50; i++) {
-        int status = 0;
-        pid_t ret = waitpid(pid, &status, WNOHANG);
-        if (ret > 0) {
-            int exitCode = WIFEXITED(status) ? WEXITSTATUS(status) : 1;
-            Debug::log(LOG, "condition_cmd exited with {}", exitCode);
-            return exitCode == 0;
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    }
-
-    // Timeout — kill and return false
-    Debug::log(WARN, "condition_cmd timed out after 5s, killing");
-    kill(pid, SIGKILL);
-    waitpid(pid, nullptr, 0);
-    return false;
+    const int exitCode = proc.exitCode();
+    Debug::log(LOG, "condition_cmd exited with {}", exitCode);
+    return exitCode == 0;
 }
 
 static void spawn(const std::string& args);
