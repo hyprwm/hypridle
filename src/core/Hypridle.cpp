@@ -337,6 +337,14 @@ void CHypridle::onLocked() {
     if (!std::string{*LOCKCMD}.empty())
         spawn(*LOCKCMD);
 
+    if (m_sDBUSState.screenSaverObjects.size() > 0) {
+        auto obj = m_sDBUSState.screenSaverObjects[0].get();
+
+        obj->emitSignal("ActiveChanged")
+            .onInterface("org.freedesktop.ScreenSaver")
+            .withArguments(true);
+    }
+
     if (m_inhibitSleepBehavior == SLEEP_INHIBIT_LOCK_NOTIFY)
         uninhibitSleep();
 }
@@ -344,6 +352,14 @@ void CHypridle::onLocked() {
 void CHypridle::onUnlocked() {
     Debug::log(LOG, "Wayland session got unlocked");
     m_isLocked = false;
+
+    if (m_sDBUSState.screenSaverObjects.size() > 0) {
+        auto obj = m_sDBUSState.screenSaverObjects[0].get();
+
+        obj->emitSignal("ActiveChanged")
+            .onInterface("org.freedesktop.ScreenSaver")
+            .withArguments(false);
+    }
 
     if (m_inhibitSleepBehavior == SLEEP_INHIBIT_LOCK_NOTIFY)
         inhibitSleep();
@@ -560,7 +576,12 @@ void CHypridle::setupDBUS() {
                        }),
                                    sdbus::registerMethod("UnInhibit").implementedAs([object = obj.get()](uint32_t c) {
                                        handleDbusScreensaver("", "", c, false, object->getCurrentlyProcessedMessage().getSender());
-                                   }))
+                                   }),
+                                   sdbus::registerMethod("GetActive").implementedAs([]() {
+                                       return g_pHypridle->m_isLocked;
+                                   }),
+                                   sdbus::registerSignal("ActiveChanged").withParameters<bool>()
+                                )
                         .forInterface(sdbus::InterfaceName{"org.freedesktop.ScreenSaver"});
 
                     m_sDBUSState.screenSaverObjects.push_back(std::move(obj));
