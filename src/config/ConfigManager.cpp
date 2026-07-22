@@ -60,6 +60,7 @@ void CConfigManager::init() {
     m_config.addSpecialConfigValue("listener", "on-timeout", Hyprlang::STRING{""});
     m_config.addSpecialConfigValue("listener", "on-resume", Hyprlang::STRING{""});
     m_config.addSpecialConfigValue("listener", "ignore_inhibit", Hyprlang::INT{0});
+    m_config.addSpecialConfigValue("listener", "state", Hyprlang::INT{-1});
 
     m_config.addConfigValue("general:lock_cmd", Hyprlang::STRING{""});
     m_config.addConfigValue("general:unlock_cmd", Hyprlang::STRING{""});
@@ -109,6 +110,7 @@ Hyprlang::CParseResult CConfigManager::postParse() {
         rule.onResume  = std::any_cast<Hyprlang::STRING>(m_config.getSpecialConfigValue("listener", "on-resume", k.c_str()));
 
         rule.ignoreInhibit = std::any_cast<Hyprlang::INT>(m_config.getSpecialConfigValue("listener", "ignore_inhibit", k.c_str()));
+        rule.state        = std::any_cast<Hyprlang::INT>(m_config.getSpecialConfigValue("listener", "state", k.c_str()));
 
         if (timeout == -1) {
             result.setError("Category has a missing timeout setting");
@@ -119,8 +121,8 @@ Hyprlang::CParseResult CConfigManager::postParse() {
     }
 
     for (auto& r : m_vRules) {
-        Debug::log(LOG, "Registered timeout rule for {}s:\n      on-timeout: {}\n      on-resume: {}\n      ignore_inhibit: {}", r.timeout, r.onTimeout, r.onResume,
-                   r.ignoreInhibit);
+        Debug::log(LOG, "Registered timeout rule for {}s:\n      on-timeout: {}\n      on-resume: {}\n      ignore_inhibit: {}\n      state: {}", r.timeout, r.onTimeout, r.onResume,
+                   r.ignoreInhibit, r.state);
     }
 
     return result;

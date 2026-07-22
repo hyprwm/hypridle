@@ -22,6 +22,7 @@ class CHypridle {
         std::string                 onRestore        = "";
         bool                        ignoreInhibit    = false;
         bool                        onTimeoutFired   = false;
+        int8_t                      state            = -1;
     };
 
     struct SDbusInhibitCookie {

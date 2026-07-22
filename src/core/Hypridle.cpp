@@ -68,6 +68,7 @@ void CHypridle::run() {
         l.onRestore     = r.onResume;
         l.onTimeout     = r.onTimeout;
         l.ignoreInhibit = r.ignoreInhibit;
+        l.state         = r.state;
 
         if (*IGNOREWAYLANDINHIBIT || r.ignoreInhibit)
             l.notification =
@@ -261,6 +262,16 @@ void CHypridle::onIdled(SIdleListener* pListener) {
     if (g_pHypridle->m_iInhibitLocks > 0 && !pListener->ignoreInhibit) {
         Debug::log(LOG, "Ignoring from onIdled(), inhibit locks: {}", g_pHypridle->m_iInhibitLocks);
         return;
+    }
+
+    if (pListener->state != -1) {
+        if (pListener->state == 1 && !g_pHypridle->m_isLocked) {
+            Debug::log(LOG, "Ignoring from onIdled() due to state (not locked)");
+            return;
+        } else if (pListener->state == 0 && g_pHypridle->m_isLocked) {
+            Debug::log(LOG, "Ignoring from onIdled() due to state (locked)");
+            return;
+        }
     }
 
     if (pListener->onTimeout.empty()) {
