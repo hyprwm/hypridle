@@ -22,6 +22,7 @@ class CHypridle {
         std::string                 onRestore         = "";
         bool                        ignoreInhibit     = false;
         bool                        onTimeoutFired    = false;
+        bool                        idleWasInhibited  = false;
         std::string                 conditionCmd      = "";
         int64_t                     conditionRetry    = 0;
         bool                        conditionPending  = false;
@@ -60,7 +61,6 @@ class CHypridle {
     void    enterEventLoop();
 
     bool    m_bTerminate    = false;
-    bool    isIdled         = false;
     bool    m_isLocked      = false;
     int64_t m_iInhibitLocks = 0;
 

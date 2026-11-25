@@ -297,9 +297,10 @@ static void spawn(const std::string& args) {
 
 void CHypridle::onIdled(SIdleListener* pListener) {
     Debug::log(LOG, "Idled: rule {:x}", (uintptr_t)pListener);
-    isIdled = true;
     if (g_pHypridle->m_iInhibitLocks > 0 && !pListener->ignoreInhibit) {
         Debug::log(LOG, "Ignoring from onIdled(), inhibit locks: {}", g_pHypridle->m_iInhibitLocks);
+        // The notification won't send idled again before a resume, so onInhibit() re-arms it once the inhibitors are gone.
+        pListener->idleWasInhibited = true;
         return;
     }
 
@@ -329,17 +330,10 @@ void CHypridle::onIdled(SIdleListener* pListener) {
 
 void CHypridle::onResumed(SIdleListener* pListener) {
     Debug::log(LOG, "Resumed: rule {:x}", (uintptr_t)pListener);
-    isIdled = false;
+    pListener->idleWasInhibited = false;
 
     // Any input means the user is no longer idle for *any* rule, so cancel all
-    // pending condition retries, not just this listener's. Per-listener clearing
-    // is insufficient: onInhibit() destroys and recreates idle notifications when
-    // the inhibit count drops to 0 while idle (e.g. a media player toggling the
-    // screensaver inhibit). That orphans a long-timeout rule's pending retry --
-    // its old notification is gone, and the recreated one won't fire resume until
-    // a fresh full timeout elapses, which never happens if the user stays active.
-    // The retry then waits on conditionPending alone and fires when the condition
-    // finally clears, despite continuous input. Clearing all on any resume fixes it.
+    // pending condition retries, not just this listener's.
     for (auto& l : m_sWaylandIdleState.listeners)
         l.conditionPending = false;
 
@@ -368,7 +362,7 @@ void CHypridle::onInhibit(bool lock) {
         m_iInhibitLocks = 0;
     }
 
-    if (m_iInhibitLocks == 0 && isIdled) {
+    if (m_iInhibitLocks == 0) {
         static const auto IGNOREWAYLANDINHIBIT = g_pConfigManager->getValue<Hyprlang::INT>("general:ignore_wayland_inhibit");
 
         const auto        RULES = g_pConfigManager->getRules();
@@ -376,6 +370,13 @@ void CHypridle::onInhibit(bool lock) {
             auto&       l = m_sWaylandIdleState.listeners[i];
             const auto& r = RULES[i];
 
+            // Only re-arm listeners whose idled event was swallowed by an inhibitor. Recreating a listener whose on-timeout already ran would drop
+            // its pending resumed event (a new notification starts out non-idle), so its on-resume would never run.
+            if (!l.idleWasInhibited)
+                continue;
+
+            Debug::log(LOG, "Re-arming rule {:x}, its idle was inhibited", (uintptr_t)&l);
+            l.idleWasInhibited = false;
             l.notification->sendDestroy();
 
             if (*IGNOREWAYLANDINHIBIT || r.ignoreInhibit)
