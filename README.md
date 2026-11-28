@@ -57,9 +57,11 @@ sudo cmake --install build
 ### Usage:
 
 Hypridle should ideally be launched after logging in. This can be done by your compositor or by systemd.
-For example, for Hyprland, use the following in your `hyprland.conf`.
-```hyprlang
-exec-once = hypridle
+For example, for Hyprland, use the following in your `hyprland.lua`.
+```lua
+hl.on("hyprland.start", function ()
+   hl.exec_cmd("hypridle")
+end)
 ```
 If, instead, you want to have systemd do this for you, you'll just need to enable the service using
 ```sh
